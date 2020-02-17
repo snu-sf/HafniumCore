@@ -40,6 +40,7 @@ Inductive val: Type :=
 (* | Vundef *)
 (* | Vnodef *)
 .
+Definition Vnull := Vptr [].
 
 Axiom dummy_client: forall A, A -> unit.
 
@@ -87,6 +88,7 @@ Module ImpNotations.
   Infix "+" := Plus : expr_scope.
   Infix "-" := Minus : expr_scope.
   Infix "*" := Mult : expr_scope.
+  (* Notation "'NULL'" := (Vptr []) (at level 40): expr_scope. *)
 
   Bind Scope stmt_scope with stmt.
 
@@ -180,6 +182,7 @@ Variant Event: Type -> Type :=
 | Syscall
     (name: string)
     (arg: list val): Event val
+| Yield: Event unit
 .
 
 Definition triggerUB {E A} `{Event -< E} : itree E A :=
@@ -294,7 +297,9 @@ Section Denote.
   Definition is_true (v : val) : bool :=
     match v with
     | Vnat n => if (n =? 0)%nat then false else true
-    | _ => true (**** YJ: We are assuming type checking here. (reference != null) ****)
+    | Vptr (_ :: _) => true (* nonnull pointer *)
+                         (* YJ: THIS IS TEMPORARY HACKING *)
+    | Vptr _ => false (* null pointer *)
     end
   .
 
