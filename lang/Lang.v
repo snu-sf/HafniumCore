@@ -323,11 +323,9 @@ Section Denote.
                            v <- trigger (GetVar x) ;;
                            match ofs, v with
                            | Vnat ofs, Vptr cts0 =>
-                             (* match (update_err cts0 ofs v) with *)
-                             (* | Some cts1 => trigger (SetVar x (Vptr cts1)) *)
-                             (* | _ => triggerNB *)
-                             (* end *)
-                             cts1 <- (getN (update_err cts0 ofs v)) ;;
+                             cts1 <- (getN (update_err cts0 ofs e)) ;;
+                                  (**** BELOW WAS AN ACTUAL MISTAKE *****)
+                             (* cts1 <- (getN (update_err cts0 ofs v)) ;; *)
                                   trigger (SetVar x (Vptr cts1))
                            | _, _ => triggerNB
                            end
