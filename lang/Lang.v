@@ -503,6 +503,9 @@ Qed.
 Require Extraction.
 
 (* Extraction "Lang.ml" burn. *)
+Require Import ExtrOcamlBasic.
+Require Import ExtrOcamlNatInt.
+Require Import ExtrOcamlString.
 
 
 Definition load_store x sum: stmt :=
@@ -525,7 +528,7 @@ Compute (burn 200 (eval_imp (load_store "x" "sum"))).
 
 Definition load_store_applied := load_store "x" "sum".
 Definition main: unit := tt.
-Extract Constant dummy_client => "fun _ -> Tt".
+Extract Constant dummy_client => "fun _ -> ()".
 Extract Constant main =>
 "
 let handle_Event e k = match e with
