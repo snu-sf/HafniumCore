@@ -26,7 +26,10 @@ Import Monads.
 Import MonadNotation.
 Local Open Scope monad_scope.
 Local Open Scope string_scope.
+Require Import sflib.
 
+(* Set Typeclasess Depth 4. *)
+(* Typeclasses eauto := debug 4. *)
 
 Definition var : Set := string.
 
@@ -43,7 +46,9 @@ Inductive expr : Type :=
 | Lit (_ : val)
 | Plus  (_ _ : expr)
 | Minus (_ _ : expr)
-| Mult  (_ _ : expr).
+| Mult  (_ _ : expr)
+| Load (_: var) (_: expr)
+.
 
 (** The statements are straightforward. The [While] statement is the only
  potentially diverging one. *)
@@ -56,6 +61,7 @@ Inductive stmt : Type :=
 | Skip                           (* ; *)
 | Assume
 | Guarantee
+| Store (x: var) (ofs: expr) (e: expr) (* x->ofs := e *)
 .
 
 (* ========================================================================== *)
@@ -145,7 +151,9 @@ Import ImpNotations.
     informative answer being expected from the environment.  *)
 Variant ImpState : Type -> Type :=
 | GetVar (x : var) : ImpState val
-| SetVar (x : var) (v : val) : ImpState unit.
+| SetVar (x : var) (v : val) : ImpState unit
+(* | StoreVar (x: var) (ofs: nat) (v: val): ImpState bool *)
+.
 
 Variant Event: Type -> Type :=
 | NB: Event void
@@ -158,6 +166,18 @@ Definition triggerUB {E A} `{Event -< E} : itree E A :=
 Definition triggerNB {E A} `{Event -< E} : itree E A :=
   vis NB (fun v => match v: void with end)
 .
+
+Definition getN {E X} `{Event -< E} (x: option X): itree E X :=
+  match x with
+  | Some x => ret x
+  | None => triggerNB
+  end.
+
+Definition getU {E X} `{Event -< E} (x: option X): itree E X :=
+  match x with
+  | Some x => ret x
+  | None => triggerUB
+  end.
 
 Section Denote.
 
@@ -189,18 +209,27 @@ Section Denote.
     | Plus a b  => l <- denote_expr a ;; r <- denote_expr b ;;
                      match l, r with
                      | Vnat l, Vnat r => ret (Vnat (l + r))
-                     | _, _ => triggerUB
+                     | _, _ => triggerNB
                      end
     | Minus a b => l <- denote_expr a ;; r <- denote_expr b ;;
                      match l, r with
                      | Vnat l, Vnat r => ret (Vnat (l - r))
-                     | _, _ => triggerUB
+                     | _, _ => triggerNB
                      end
     | Mult a b  => l <- denote_expr a ;; r <- denote_expr b ;;
                      match l, r with
                      | Vnat l, Vnat r => ret (Vnat (l - r))
-                     | _, _ => triggerUB
+                     | _, _ => triggerNB
                      end
+    | Load x ofs => x <- trigger (GetVar x) ;; ofs <- denote_expr ofs ;;
+                      match x, ofs with
+                      | Vptr cts, Vnat ofs =>
+                        match nth_error cts ofs with
+                        | Some v => ret v
+                        | _ => triggerNB
+                        end
+                      | _, _ => triggerNB
+                      end
     end.
 
   (** We turn to the denotation of statements. As opposed to expressions,
@@ -265,6 +294,18 @@ Section Denote.
     | Skip => ret tt
     | Assume => triggerUB
     | Guarantee => triggerNB
+    | Store x ofs e => ofs <- denote_expr ofs ;; e <- denote_expr e ;;
+                           v <- trigger (GetVar x) ;;
+                           match ofs, v with
+                           | Vnat ofs, Vptr cts0 =>
+                             (* match (update_err cts0 ofs v) with *)
+                             (* | Some cts1 => trigger (SetVar x (Vptr cts1)) *)
+                             (* | _ => triggerNB *)
+                             (* end *)
+                             cts1 <- (getN (update_err cts0 ofs v)) ;;
+                                  trigger (SetVar x (Vptr cts1))
+                           | _, _ => triggerNB
+                           end
     end.
 
 End Denote.

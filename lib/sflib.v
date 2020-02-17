@@ -1395,3 +1395,53 @@ Ltac des_sumbool :=
      | [ |- false = proj_sumbool ?x ] => symmetry; apply proj_sumbool_is_false
      end)
 .
+
+Fixpoint update A (la: list A) (idx: nat) (a: A): (list A) :=
+  match idx with
+  | O =>
+    match la with
+    | hd :: tl => a :: tl
+    | _ => la
+    end
+  | S midx =>
+    match la with
+    | hd :: tl => hd :: (update tl midx a)
+    | _ => la
+    end
+  end
+.
+
+Lemma update_spec
+      A (la: list A) idx a
+  :
+    forall n (LT: (n < List.length la)%nat),
+      <<NTH: nth_error (update la idx a) n = if Nat.eqb n idx
+                                              then Some a
+                                              else nth_error la n>>.
+Proof.
+  ginduction la; ii; ss.
+  { omega. }
+  destruct n; ss.
+  { des_ifs; ss. }
+  destruct idx; ss.
+  exploit (IHla idx a0 n); eauto. { omega. }
+Qed.
+
+Fixpoint update_err A (la: list A) (idx: nat) (a: A): option (list A) :=
+  match idx with
+  | O =>
+    match la with
+    | hd :: tl => Some (a :: tl)
+    | _ => None
+    end
+  | S midx =>
+    match la with
+    | hd :: tl =>
+      match (update_err tl midx a) with
+      | Some tl => Some (hd :: tl)
+      | _ => None
+      end
+    | _ => None
+    end
+  end
+.
