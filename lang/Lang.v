@@ -71,9 +71,11 @@ Module ImpNotations.
 
   (** A few notations for convenience.  *)
   Definition Var_coerce: string -> expr := Var.
-  Definition Lit_coerce: nat -> expr := fun n => Lit (Vnat n).
+  Definition Lit_coerce: val -> expr := Lit.
+  Definition nat_coerce: nat -> val := Vnat.
   Coercion Var_coerce: string >-> expr.
-  Coercion Lit_coerce: nat >-> expr.
+  Coercion Lit_coerce: val >-> expr.
+  Coercion nat_coerce: nat >-> val.
 
   Bind Scope expr_scope with expr.
 
@@ -107,7 +109,7 @@ Module ImpNotations.
   (*      format *)
   (*        "'[v  ' 'WHILE'  t  'DO' '/' '[v' b  ']' ']'"). *)
 
-  Notation "x '#<-' e" :=
+  Notation "x '#:=' e" :=
     (Assign x e) (at level 60, e at level 50): stmt_scope.
 
   Notation "a '#;' b" :=
@@ -130,6 +132,12 @@ Module ImpNotations.
        right associativity,
        format
          "'[v  ' '#while'  t  'do' '/' '[v' b  ']' ']'").
+
+  (* Notation "x '#->' ofs '#:=' e" := *)
+  (*   (Store x ofs e) (at level 60, e at level 50): stmt_scope. *)
+
+  (* Notation "x '#->' ofs" := *)
+  (*   (Load x ofs) (at level 99): expr_scope. *)
 
 End ImpNotations.
 
@@ -330,11 +338,11 @@ Section Example_Fact.
   (*   DO output ← output * input;;; *)
   (*      input  ← input - 1. *)
   Definition fact (n:nat): stmt :=
-    input #<- n#;
-    output #<- 1#;
+    input #:= Vnat n#;
+    output #:= Vnat 1#;
     #while input
-    do output #<- output * input#;
-       input  #<- input - 1.
+    do output #:= output * input#;
+       input  #:= input - Vnat 1.
 
   (** We have given _a_ notion of denotation to [fact 6] via [denote_imp].
       However, this is naturally not actually runnable yet, since it contains
@@ -472,11 +480,28 @@ Qed.
 
 Require Extraction.
 
-Extraction "impK.ml" stmt_Assume.
-Extraction "impK.ml" eval_imp.
-Definition main := (burn 100 (eval_imp2 stmt_Assume)).
-Extraction "impK.ml" main.
-(* Extraction "impK.ml" burn. *)
+(* Extraction "Lang.ml" burn. *)
+
+
+Definition load_store x sum: stmt :=
+  sum #:= Vnat 0#;
+  x #:= Vptr (repeat (Vnat 0) 3)#;
+  (Store x 0 10)#;
+  (Store x 1 20)#;
+  (Store x 2 30)#;
+  sum #:= sum + (Load x 0)#;
+  sum #:= sum + (Load x 1)#;
+  sum #:= sum + (Load x 2)
+.
+
+Compute (burn 200 (eval_imp2 (load_store "x" "sum"))).
+(* Definition main := (burn 100 (eval_imp2 stmt_Assume)). *)
+(* Definition main := (burn 200 (eval_imp2 (load_store "x" "sum"))). *)
+
+(* Require Import ExtrOcamlString. *)
+(* Extraction Blacklist String. *)
+Definition load_store_applied := load_store "x" "sum".
+Extraction "Lang.ml" load_store_applied eval_imp stmt_Assume.
 
 (* ========================================================================== *)
 Section InterpImpProperties.
