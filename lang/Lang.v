@@ -28,6 +28,7 @@ Local Open Scope monad_scope.
 Local Open Scope string_scope.
 Require Import sflib.
 
+Set Implicit Arguments.
 (* Set Typeclasess Depth 4. *)
 (* Typeclasses eauto := debug 4. *)
 
@@ -38,6 +39,15 @@ Inductive val: Type :=
 | Vptr (contents: list val)
 (* | Vundef *)
 (* | Vnodef *)
+.
+
+Axiom dummy_client: forall A, A -> unit.
+
+Fixpoint val_iter (v: val) (f: nat -> unit): unit :=
+  match v with
+  | Vnat n => dummy_client (f n)
+  | Vptr cts => List.fold_left (fun s i => dummy_client i) cts tt
+  end
 .
 
 (** Expressions are made of variables, constant literals, and arithmetic operations. *)
@@ -62,6 +72,8 @@ Inductive stmt : Type :=
 | Assume
 | Guarantee
 | Store (x: var) (ofs: expr) (e: expr) (* x->ofs := e *)
+| Put (v: var)
+(* | Get (x: var) *)
 .
 
 (* ========================================================================== *)
@@ -139,6 +151,12 @@ Module ImpNotations.
   (* Notation "x '#->' ofs" := *)
   (*   (Load x ofs) (at level 99): expr_scope. *)
 
+  Notation "#put e" :=
+    (Put e) (at level 60, e at level 50): stmt_scope.
+
+  (* Notation "x '#:=' '#get' e" := *)
+  (*   (Get x e) (at level 60, e at level 50): stmt_scope. *)
+
 End ImpNotations.
 
 Import ImpNotations.
@@ -166,6 +184,10 @@ Variant ImpState : Type -> Type :=
 Variant Event: Type -> Type :=
 | NB: Event void
 | UB: Event void
+| Syscall
+    (* (name: string) *)
+    (name: nat) (* TODO: CHANGE TO STRING *)
+    (arg: list val): Event val
 .
 
 Definition triggerUB {E A} `{Event -< E} : itree E A :=
@@ -173,6 +195,9 @@ Definition triggerUB {E A} `{Event -< E} : itree E A :=
 .
 Definition triggerNB {E A} `{Event -< E} : itree E A :=
   vis NB (fun v => match v: void with end)
+.
+Definition triggerSyscall {E} `{Event -< E} : nat -> list val -> itree E val :=
+  embed Syscall
 .
 
 Definition getN {E X} `{Event -< E} (x: option X): itree E X :=
@@ -314,6 +339,9 @@ Section Denote.
                                   trigger (SetVar x (Vptr cts1))
                            | _, _ => triggerNB
                            end
+    | Put x => v <- trigger (GetVar x) ;;
+                 _ <- triggerSyscall (0) [v] ;; Ret tt
+    (* | Get x => retv <- triggerSyscall (1) [];; trigger (SetVar x retv);; Ret tt *)
     end.
 
 End Denote.
@@ -417,56 +445,50 @@ Definition interp_imp  {E A} (t : itree (ImpState +' E) A) :
   let t' := interp (bimap handle_ImpState (id_ E)) t in
   interp_map t'.
 
-Definition handle_Event
-  : Event ~> itree void1 :=
-  fun T e =>
-    match e with
-    | UB => ITree.spin
-    | NB => ITree.spin
-    end
-.
-(* Definition handle_Event {E: Type -> Type}: Event ~> itree void1 := *)
-(*   fun _ e => *)
+(* Definition handle_Event *)
+(*   : Event ~> itree void1 := *)
+(*   fun T e => *)
 (*     match e with *)
-(*     | GetVar x => lookup_def x *)
-(*     | SetVar x v => insert x v *)
-(*     end. *)
+(*     | UB => ITree.spin *)
+(*     | NB => ITree.spin *)
+(*     end *)
 
-Definition interp_Event {E A} (t: itree (Event +' E) A): itree (void1 +' E) A :=
-  let t' := interp (bimap handle_Event (id_ E)) t in
-  t'.
+(* Definition interp_Event {E A} (t: itree (Event +' E) A): itree (void1 +' E) A := *)
+(*   let t' := interp (bimap handle_Event (id_ E)) t in *)
+(*   t'. *)
 
-Definition interp_Event2 {A} (t: itree (Event) A): itree (void1) A :=
-  let t' := interp (handle_Event) t in
-  t'.
+(* Definition interp_Event2 {A} (t: itree (Event) A): itree (void1) A := *)
+(*   let t' := interp (handle_Event) t in *)
+(*   t'. *)
 
 Variable s: stmt.
 Check (denote_imp s).
 Check interp_imp (denote_imp s) empty.
-Check (@interp_Event _ _ (interp_imp (denote_imp s) empty)).
-Check (interp_Event2 (interp_imp (denote_imp s) empty)).
+(* Check (@interp_Event _ _ (interp_imp (denote_imp s) empty)). *)
+(* Check (interp_Event2 (interp_imp (denote_imp s) empty)). *)
 
-Definition eval_imp2 (s: stmt) : itree void1 (env * unit)
-  := (interp_Event2 (interp_imp (denote_imp s) empty))
-.
+(* Definition eval_imp2 (s: stmt) : itree void1 (env * unit) *)
+(*   := (interp_Event2 (interp_imp (denote_imp s) empty)) *)
+(* . *)
 
-Definition eval_imp (s: stmt) {E} : itree (void1 +' E) (env * unit) :=
-  interp_Event (interp_imp (denote_imp s) empty).
+(* Definition eval_imp (s: stmt) {E} : itree (void1 +' E) (env * unit) := *)
+(*   interp_Event (interp_imp (denote_imp s) empty). *)
 
 Fail Definition eval_imp (s: stmt) : itree void1 (env * unit) :=
   interp_imp (denote_imp s) empty.
+
+Definition eval_imp (s: stmt) : itree Event (env * unit)
+  := ((interp_imp (denote_imp s) empty))
+.
 
 (** Equipped with this evaluator, we can now compute.
     Naturally since Coq is total, we cannot do it directly inside of it.
     We can either rely on extraction, or use some fuel.
  *)
-Definition test_assume := eval_imp2 Assume.
+Definition test_assume := eval_imp Assume.
                             
 (* Definition test_interp : itree IO unit -> bool := fun t => *)
 Definition stmt_Assume: stmt := Assume.
-Compute (burn 200 (eval_imp2 (fact "input" "output" 6))).
-Compute (burn 200 (eval_imp2 Assume)).
-Compute (burn 200 (eval_imp2 Guarantee)).
 Compute (burn 200 (eval_imp (fact "input" "output" 6))).
 Compute (burn 200 (eval_imp Assume)).
 Compute (burn 200 (eval_imp Guarantee)).
@@ -474,7 +496,7 @@ Goal forall E R, (burn 200 (@ITree.spin E R)) = (burn 2 (ITree.spin)).
   reflexivity.
 Qed.
 
-Goal forall E, (burn 200 (@eval_imp Assume E)) = (burn 2 (eval_imp Assume)).
+Goal (burn 200 (@eval_imp Assume)) = (burn 2 (eval_imp Assume)).
   reflexivity.
 Qed.
 
@@ -494,14 +516,30 @@ Definition load_store x sum: stmt :=
   sum #:= sum + (Load x 2)
 .
 
-Compute (burn 200 (eval_imp2 (load_store "x" "sum"))).
+Compute (burn 200 (eval_imp (load_store "x" "sum"))).
 (* Definition main := (burn 100 (eval_imp2 stmt_Assume)). *)
 (* Definition main := (burn 200 (eval_imp2 (load_store "x" "sum"))). *)
 
 (* Require Import ExtrOcamlString. *)
 (* Extraction Blacklist String. *)
+
 Definition load_store_applied := load_store "x" "sum".
-Extraction "Lang.ml" load_store_applied eval_imp stmt_Assume.
+Definition main: unit := tt.
+Extract Constant dummy_client => "fun _ -> Tt".
+Extract Constant main =>
+"
+let handle_Event e k = match e with
+  | NB -> failwith ""NB OCCURED"" ; k (Obj.magic ())
+  | UB -> failwith ""UB OCCURED"" ; k (Obj.magic ()) in
+let rec run t =
+  match observe t with
+  | RetF r -> r
+  | TauF t -> run t
+  | VisF (e, k) -> handle_Event e (fun x -> run (k x)) in
+run (eval_imp load_store_applied)
+"
+.
+Extraction "Lang.ml" load_store_applied eval_imp stmt_Assume val_iter main.
 
 (* ========================================================================== *)
 Section InterpImpProperties.
