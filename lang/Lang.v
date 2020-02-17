@@ -43,13 +43,6 @@ Inductive val: Type :=
 
 Axiom dummy_client: forall A, A -> unit.
 
-Fixpoint val_iter (v: val) (f: nat -> unit): unit :=
-  match v with
-  | Vnat n => dummy_client (f n)
-  | Vptr cts => List.fold_left (fun s i => dummy_client i) cts tt
-  end
-.
-
 (** Expressions are made of variables, constant literals, and arithmetic operations. *)
 Inductive expr : Type :=
 | Var (_ : var)
@@ -185,8 +178,7 @@ Variant Event: Type -> Type :=
 | NB: Event void
 | UB: Event void
 | Syscall
-    (* (name: string) *)
-    (name: nat) (* TODO: CHANGE TO STRING *)
+    (name: string)
     (arg: list val): Event val
 .
 
@@ -196,7 +188,7 @@ Definition triggerUB {E A} `{Event -< E} : itree E A :=
 Definition triggerNB {E A} `{Event -< E} : itree E A :=
   vis NB (fun v => match v: void with end)
 .
-Definition triggerSyscall {E} `{Event -< E} : nat -> list val -> itree E val :=
+Definition triggerSyscall {E} `{Event -< E} : string -> list val -> itree E val :=
   embed Syscall
 .
 
@@ -340,7 +332,7 @@ Section Denote.
                            | _, _ => triggerNB
                            end
     | Put x => v <- trigger (GetVar x) ;;
-                 _ <- triggerSyscall (0) [v] ;; Ret tt
+                 _ <- triggerSyscall "p" [v] ;; Ret tt
     (* | Get x => retv <- triggerSyscall (1) [];; trigger (SetVar x retv);; Ret tt *)
     end.
 
@@ -511,12 +503,21 @@ Require Import ExtrOcamlString.
 Definition load_store x sum: stmt :=
   sum #:= Vnat 0#;
   x #:= Vptr (repeat (Vnat 0) 3)#;
+  #put x#;
   (Store x 0 10)#;
+  #put x#;
   (Store x 1 20)#;
+  #put x#;
   (Store x 2 30)#;
+  #put x#;
+  #put sum#;
   sum #:= sum + (Load x 0)#;
+  #put sum#;
   sum #:= sum + (Load x 1)#;
-  sum #:= sum + (Load x 2)
+  #put sum#;
+  sum #:= sum + (Load x 2)#;
+  #put sum#;
+  Skip
 .
 
 Compute (burn 200 (eval_imp (load_store "x" "sum"))).
@@ -527,13 +528,33 @@ Compute (burn 200 (eval_imp (load_store "x" "sum"))).
 (* Extraction Blacklist String. *)
 
 Definition load_store_applied := load_store "x" "sum".
-Definition main: unit := tt.
+Definition print_val: unit := tt.
+Definition handle_Event: unit := tt.
+Definition main: unit :=
+  let _ := print_val in
+  let _ := load_store_applied in
+  let _ := handle_Event in
+  tt.
 Extract Constant dummy_client => "fun _ -> ()".
+Extract Constant print_val => "
+let rec go v =
+  match v with
+  | Vnat n -> print_string ((string_of_int n) ^ "" "")
+  | Vptr cts -> print_string ""["" ; List.iter go cts ; print_string ""]"" in
+fun v -> go v ; print_endline "" ""
+"
+.
+Extract Constant handle_Event =>
+"
+fun e k -> match e with
+  | NB -> failwith ""NB OCCURED""
+  | UB -> failwith ""UB OCCURED""
+  | Syscall (['p'], [v]) -> print_val v ; k (Obj.magic ())
+  | _ -> failwith ""NO MATCH""
+"
+.
 Extract Constant main =>
 "
-let handle_Event e k = match e with
-  | NB -> failwith ""NB OCCURED"" ; k (Obj.magic ())
-  | UB -> failwith ""UB OCCURED"" ; k (Obj.magic ()) in
 let rec run t =
   match observe t with
   | RetF r -> r
@@ -542,7 +563,15 @@ let rec run t =
 run (eval_imp load_store_applied)
 "
 .
-Extraction "Lang.ml" load_store_applied eval_imp stmt_Assume val_iter main.
+
+(* Fixpoint val_iter (v: val) (f: nat -> unit): unit := *)
+(*   match v with *)
+(*   | Vnat n => dummy_client (f n) *)
+(*   | Vptr cts => List.fold_left (fun s i => dummy_client i) cts tt *)
+(*   end *)
+(* . *)
+
+Extraction "Lang.ml" load_store_applied eval_imp stmt_Assume print_val main handle_Event.
 
 (* ========================================================================== *)
 Section InterpImpProperties.
