@@ -17,3 +17,6 @@ graph.dot
 .lia.cache
 .nia.cache
 .coqdeps.d
+
+*.ml
+*.mli

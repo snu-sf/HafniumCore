@@ -1,4 +1,4 @@
-COQMODULE    := compcomp
+COQMODULE    := HafniumCore
 # COQTHEORIES  := $(wildcard */*.v) #*/*.v
 COQTHEORIES  := $(shell find . -iname '*.v')
 
