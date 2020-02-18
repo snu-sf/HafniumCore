@@ -142,7 +142,41 @@ Definition mutrec_program: program := [("main", rec_main_function) ;
                                       ("g", mutrec_g_function)].
 
 (* TODO: move *)
+(* YJ: if we just use "r", not "unused", something weird will happen *)
+(* TODO: address it better *)
+Definition move_f x y accu unused: stmt :=
+  (* #put x #; *)
+  (#if x
+   then (y #:= (x - 1) #;
+           (* #put 444 #; *)
+           (Call unused "f" [y ; accu]) #;
+           (* #put 555 #; *)
+           accu #:= accu + x #;
+           (* #put 666 #; *)
+           Skip
+        )
+   else
+     (* #put 777 #; *)
+     (accu #:= 0)
+     fi)
+    #;
+    77777
+.
 
+Definition move_main x accu unused: stmt :=
+  x #:= 10 #;
+    accu #:= 1000 #;
+    (Call unused "f" [x ; accu]) #;
+    #put accu
+.
+
+Definition move_f_function: function := mk_function ["x" ; "accu"]
+                                                    (move_f "x" "local0" "accu" "local1").
+Definition move_main_function: function :=
+  mk_function [] (move_main "local0" "local1" "local2").
+
+Definition move_program: program := [("main", move_main_function) ;
+                                       ("f", move_f_function)].
 
 
 

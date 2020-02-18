@@ -61,4 +61,6 @@ let main =
            print_endline "-----------------------------------" ;
            run (eval_program rec_program) ;
            print_endline "-----------------------------------" ;
-           run (eval_program mutrec_program)
+           run (eval_program mutrec_program) ;
+           print_endline "-----------------------------------" ;
+           run (eval_program move_program)
