@@ -24,15 +24,16 @@ Extraction Blacklist List String Int.
 Cd "extract".
 
 Separate Extraction
-         Lang.eval_stmt (********************** YJ: remove later ********************)
-         LangTest.load_store_applied (********************** YJ: remove later ********************)
+         (* Lang.eval_stmt (********************** YJ: remove later ********************) *)
+         (* LangTest.load_store_applied (********************** YJ: remove later ********************) *)
          Lang.eval_program
          LangTest.load_store_program
-         LangTest.print_val
-         LangTest.main
-         LangTest.handle_Event
-         LangTest.cl2s
-         (* ITreeDefinition.observe *)
+         (* LangTest.print_val *)
+         (* LangTest.main *)
+         (* LangTest.handle_Event *)
+         (* LangTest.cl2s *)
+
+(* ITreeDefinition.observe *)
 .
 
 Cd "..".

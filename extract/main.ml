@@ -55,4 +55,4 @@ let rec run t =
   | TauF t -> run t
   | VisF (e, k) -> handle_Event e (fun x -> run (k x))
 
-let main = run (eval_stmt load_store_applied)
+let main = run (eval_program load_store_program)
