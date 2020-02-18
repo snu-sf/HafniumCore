@@ -49,8 +49,6 @@ Definition Vnull := Vptr [].
 (* YJ: is it really same with nodef? or we need explicit nodef? *)
 Definition Vnodef := Vnull.
 
-Axiom dummy_client: forall A, A -> unit.
-
 (** Expressions are made of variables, constant literals, and arithmetic operations. *)
 Inductive expr : Type :=
 | Var (_ : var)
@@ -404,7 +402,7 @@ Section Denote.
                            end ;;
                            ret Vnodef
     | Put x => v <- trigger (GetVar x) ;;
-                 _ <- triggerSyscall "p" [v] ;; Ret Vnodef
+                 triggerSyscall "p" [v] ;; Ret Vnodef
     (* | Get x => retv <- triggerSyscall (1) [];; trigger (SetVar x retv);; Ret tt *)
     | Call retv_name name params =>
       args <- mapT (fun arg => trigger (GetVar arg)) params;;
@@ -705,7 +703,9 @@ Compute (burn 200 (eval_stmt (load_store "x" "sum"))).
 (* Require Import ExtrOcamlString. *)
 (* Extraction Blacklist String. *)
 
+Definition cl2s (cl: string): string := cl.
 Definition load_store_applied := load_store "x" "sum".
+Check (eval_stmt load_store_applied).
 Definition print_val: unit := tt.
 Definition handle_Event: unit := tt.
 Definition main: unit :=
@@ -713,7 +713,8 @@ Definition main: unit :=
   let _ := load_store_applied in
   let _ := handle_Event in
   tt.
-Extract Constant dummy_client => "fun _ -> ()".
+(* Axiom dummy_client: forall A, A -> unit. *)
+(* Extract Constant dummy_client => "fun _ -> ()". *)
 Extract Constant print_val => "
 let rec go v =
   match v with
@@ -722,12 +723,21 @@ let rec go v =
 fun v -> go v ; print_endline "" ""
 "
 .
+
+Extract Constant cl2s => "fun cl -> String.concat """" (List.map (String.make 1) cl)".
+
 Extract Constant handle_Event =>
 "
 fun e k -> match e with
   | NB -> failwith ""NB OCCURED""
   | UB -> failwith ""UB OCCURED""
-  | Syscall (['p'], [v]) -> print_val v ; k (Obj.magic ())
+  (* | Syscall (['p'], [v]) -> print_val v ; k (Obj.magic ()) *)
+  | Syscall ('p'::[], v::[]) -> print_val v ; k (Obj.magic ())
+  | Syscall (cl, vs) -> print_endline (cl2s cl) ;
+(* print_val (List.nth vs 0) ; *)
+(* print_int (length cl) ; *)
+(* print_int (length vs) ; *)
+                        failwith ""UNSUPPORTED SYSCALL""
   | _ -> failwith ""NO MATCH""
 "
 .
@@ -749,7 +759,8 @@ run (eval_stmt load_store_applied)
 (*   end *)
 (* . *)
 
-Extraction "Lang.ml" load_store_applied eval_stmt stmt_Assume print_val main handle_Event.
+Extraction "Lang.ml" load_store_applied eval_stmt stmt_Assume print_val main handle_Event
+           cl2s.
 
 (* ========================================================================== *)
 Section InterpImpProperties.
