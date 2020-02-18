@@ -188,6 +188,8 @@ Import ImpNotations.
 Variant ImpState : Type -> Type :=
 | GetVar (x : var) : ImpState val
 | SetVar (x : var) (v : val) : ImpState unit
+| PushEnv: ImpState unit
+| PopEnv: ImpState unit
 (* | StoreVar (x: var) (ofs: nat) (v: val): ImpState bool *)
 .
 
@@ -488,9 +490,11 @@ Section Denote.
            let new_body := fold_left (fun s i => (fst i) #:= (Lit (snd i)) #; s)
                                      (* YJ: Why coercion does not work ?? *)
                                      (combine f.(params) args) f.(body) in
+           trigger PushEnv ;;
            retv <- denote_stmt2 new_body;;
-                params_updated <- mapT (fun param => trigger (GetVar param)) (f.(params));;
-                ret (retv, params_updated)
+           params_updated <- mapT (fun param => trigger (GetVar param)) (f.(params));;
+           trigger PopEnv ;;
+           ret (retv, params_updated)
          else triggerNB
   .
 
@@ -572,16 +576,35 @@ Qed.
     [M = itree E] for some universe of events [E] required to contain the
     environment events [mapE] provided by the library. It comes with an event
     interpreter [interp_map] that yields a computation in the state monad.  *)
-Definition handle_ImpState {E: Type -> Type} `{(mapE var (Vnat 0)) -< E}:
-  ImpState ~> itree E :=
-  fun _ e =>
+Definition env := list (alist var val).
+Definition handle_ImpState {E: Type -> Type}
+  : ImpState ~> stateT env (itree E) :=
+  fun _ e env =>
+    let hd := hd empty env in
+    (** YJ: error handling needed?
+error does not happen by construction for now, but when development changes..?
+How can we add error check here?
+     **)
+    let tl := tl env in
     match e with
-    | GetVar x => lookup_def x
-    | SetVar x v => insert x v
+    (* | GetVar x => Ret (env, (top <- unwrapN (hd_error env) ;; *)
+    (*                              Ret (lookup_default x (Vnat 0) top))) *)
+    | GetVar x => Ret (env, (lookup_default x (Vnat 0) hd))
+    | SetVar x v => Ret ((Maps.add x v hd) :: tl, tt)
+    | PushEnv => Ret (empty :: hd :: tl, tt)
+    | PopEnv => Ret (tl, tt)
     end.
 
+(* Definition handle_ImpState {E: Type -> Type} `{(mapE var (Vnat 0)) -< E}: *)
+(*   ImpState ~> itree E := *)
+(*   fun _ e => *)
+(*     match e with *)
+(*     | GetVar x => lookup_def x *)
+(*     | SetVar x v => insert x v *)
+(*     end. *)
+
 (** We now concretely implement this environment using ExtLib's finite maps. *)
-Definition env := alist var val.
+(* Definition env := alist var val. *)
 
 (** Finally, we can define an evaluator for our statements.
    To do so, we first denote them, leading to an [itree ImpState unit].
@@ -598,10 +621,20 @@ forall eff, {pf:E -< eff == F[E]} (t : itree eff A)
         interp pf h h' t : M A
 *)
 
+(* Typeclasses eauto := debug 4. *)
+
+(* Variable E: Type. *)
+(* Check (bimap handle_ImpState (id_ E)). *)
+
+
+(** YJ: copied from interp_map's definition **)
 Definition interp_imp  {E A} (t : itree (ImpState +' E) A) :
   stateT env (itree E) A :=
-  let t' := interp (bimap handle_ImpState (id_ E)) t in
-  interp_map t'.
+  (* let t' := interp (bimap handle_ImpState (id_ E)) t in *)
+  let t' := State.interp_state (case_ handle_ImpState State.pure_state) t in
+  t'
+  (* interp_map t' *)
+.
 
 (* Definition handle_Event *)
 (*   : Event ~> itree void1 := *)
@@ -644,9 +677,9 @@ Fail Definition eval_imp (s: stmt) : itree void1 (env * unit) :=
   interp_imp (denote_imp s) empty.
 
 Definition eval_program (p: program): itree Event (env * (val * list val))
-  := interp_imp (denote_program p) empty.
+  := interp_imp (denote_program p) [].
 Definition eval_stmt (s: stmt) : itree (Event +' EventInternal) (env * unit)
-  := ((interp_imp (denote_stmt s) empty))
+  := ((interp_imp (denote_stmt s) []))
 .
 
 (** Equipped with this evaluator, we can now compute.
@@ -697,7 +730,7 @@ Section InterpImpProperties.
     unfold interp_imp.
     unfold interp_map.
     rewrite H0. eapply eutt_interp_state_eq; auto.
-    rewrite H. reflexivity.
+    (* rewrite H. reflexivity. *)
   Qed.
 
   (** [interp_imp] commutes with [bind]. *)
