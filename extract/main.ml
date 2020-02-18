@@ -1,6 +1,8 @@
 open Lang
 open LangTest
+
 open List
+open String
 
 
 
@@ -26,6 +28,8 @@ open Traversable
 open Sflib
 
 
+
+let cl2s = fun cl -> String.concat "" (List.map (String.make 1) cl)
 
 let print_val = let rec go v =
   match v with

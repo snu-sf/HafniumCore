@@ -12,6 +12,7 @@
         void *ptr = entry;
 
         entry =[MOVE] entry->next;
+        //////////// fallback is shared
         free([BORROW]p->fallback, ptr);
     }
 
