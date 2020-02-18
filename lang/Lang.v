@@ -498,7 +498,7 @@ Section Denote.
   Definition denote_program (p: program) :=
     (* mrec (denote_function3 p) (CallInternal "MAIN" []). *)
     let sem := mrec (denote_function3 p) in
-    sem _ (CallInternal "MAIN" []).
+    sem _ (CallInternal "main" []).
   (* Better readability *)
 
   (* Definition denote_program (p: program): *)
@@ -620,9 +620,17 @@ Definition interp_imp  {E A} (t : itree (ImpState +' E) A) :
 (*   let t' := interp (handle_Event) t in *)
 (*   t'. *)
 
+Section TMP.
 Variable s: stmt.
-Check (denote_imp s).
-Check interp_imp (denote_imp s) empty.
+Check (denote_stmt s): itree (ImpState +' Event +' EventInternal) unit.
+Check interp_imp (denote_stmt s):
+  stateT env (itree (ImpState +' Event +' EventInternal)) unit.
+Eval compute in (stateT env (itree (ImpState +' Event +' EventInternal))).
+Check interp_imp (denote_stmt s):
+  env ->
+  itree (ImpState +' Event +' EventInternal) (env * unit).
+Check interp_imp (denote_stmt s) empty: itree (Event +' EventInternal) (env * unit).
+End TMP.
 (* Check (@interp_Event _ _ (interp_imp (denote_imp s) empty)). *)
 (* Check (interp_Event2 (interp_imp (denote_imp s) empty)). *)
 
@@ -636,26 +644,29 @@ Check interp_imp (denote_imp s) empty.
 Fail Definition eval_imp (s: stmt) : itree void1 (env * unit) :=
   interp_imp (denote_imp s) empty.
 
-Definition eval_imp (s: stmt) : itree Event (env * unit)
-  := ((interp_imp (denote_imp s) empty))
+Definition eval_program (p: program): itree Event (env * (val * list val))
+  := interp_imp (denote_program p) empty.
+Definition eval_stmt (s: stmt) : itree (Event +' EventInternal) (env * unit)
+  := ((interp_imp (denote_stmt s) empty))
 .
 
 (** Equipped with this evaluator, we can now compute.
     Naturally since Coq is total, we cannot do it directly inside of it.
     We can either rely on extraction, or use some fuel.
  *)
-Definition test_assume := eval_imp Assume.
+Compute (burn 200 (eval_stmt (fact "input" "output" 6))).
+Definition test_assume := eval_stmt Assume.
                             
 (* Definition test_interp : itree IO unit -> bool := fun t => *)
 Definition stmt_Assume: stmt := Assume.
-Compute (burn 200 (eval_imp (fact "input" "output" 6))).
-Compute (burn 200 (eval_imp Assume)).
-Compute (burn 200 (eval_imp Guarantee)).
+Compute (burn 200 (eval_stmt (fact "input" "output" 6))).
+Compute (burn 200 (eval_stmt Assume)).
+Compute (burn 200 (eval_stmt Guarantee)).
 Goal forall E R, (burn 200 (@ITree.spin E R)) = (burn 2 (ITree.spin)).
   reflexivity.
 Qed.
 
-Goal (burn 200 (@eval_imp Assume)) = (burn 2 (eval_imp Assume)).
+Goal (burn 200 (@eval_stmt Assume)) = (burn 2 (eval_stmt Assume)).
   reflexivity.
 Qed.
 
@@ -687,9 +698,9 @@ Definition load_store x sum: stmt :=
   Skip
 .
 
-Compute (burn 200 (eval_imp (load_store "x" "sum"))).
-(* Definition main := (burn 100 (eval_imp2 stmt_Assume)). *)
-(* Definition main := (burn 200 (eval_imp2 (load_store "x" "sum"))). *)
+Compute (burn 200 (eval_stmt (load_store "x" "sum"))).
+(* Definition main := (burn 100 (eval_stmt2 stmt_Assume)). *)
+(* Definition main := (burn 200 (eval_stmt2 (load_store "x" "sum"))). *)
 
 (* Require Import ExtrOcamlString. *)
 (* Extraction Blacklist String. *)
@@ -727,7 +738,7 @@ let rec run t =
   | RetF r -> r
   | TauF t -> run t
   | VisF (e, k) -> handle_Event e (fun x -> run (k x)) in
-run (eval_imp load_store_applied)
+run (eval_stmt load_store_applied)
 "
 .
 
@@ -738,7 +749,7 @@ run (eval_imp load_store_applied)
 (*   end *)
 (* . *)
 
-Extraction "Lang.ml" load_store_applied eval_imp stmt_Assume print_val main handle_Event.
+Extraction "Lang.ml" load_store_applied eval_stmt stmt_Assume print_val main handle_Event.
 
 (* ========================================================================== *)
 Section InterpImpProperties.
