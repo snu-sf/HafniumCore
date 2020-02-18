@@ -68,8 +68,46 @@ Definition load_store_program: program := [("main", load_store_function)].
 Check (eval_program load_store_program).
 
 
+Section TMP.
+  Variable a: var.
+  Variable b: val.
+  Check (Var a).
+  Check (Lit b).
+  Local Open Scope expr_scope.
+  Local Open Scope stmt_scope.
+  Check ((Var a) + (Lit b)).
+End TMP.
+
+Local Open Scope expr_scope.
+Local Open Scope stmt_scope.
+
+Definition rec_f x y r: stmt :=
+  #put x #;
+  (#if x
+   then (y #:= (x - 1) #; #put x #; (Call r "f" [y]) #; #put x #; r #:= r + (x - 1))
+   else (r #:= 0)
+     fi)
+    #;
+    (* #put r #; *)
+    r
+.
+
+Definition rec_f_function: function := mk_function ["x"] (rec_f "x" "local0" "local1").
+
+Definition rec_main x r: stmt :=
+  x #:= 10 #;
+    (Call  r "f" [x]) #;
+    #put r
+.
+
+Definition rec_main_function: function := mk_function [] (rec_main "local0" "local1").
+
+Definition rec_program: program := [("main", rec_main_function) ;
+                                      ("f", rec_f_function)].
 
 
+(* TODO: mutrec *)
+(* TODO: move *)
 
 
 

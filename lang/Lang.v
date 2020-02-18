@@ -89,9 +89,11 @@ Definition program: Type := list (string * function).
 Module ImpNotations.
 
   (** A few notations for convenience.  *)
+  Definition Expr_coerce: expr -> stmt := Expr.
   Definition Var_coerce: string -> expr := Var.
   Definition Lit_coerce: val -> expr := Lit.
   Definition nat_coerce: nat -> val := Vnat.
+  Coercion Expr_coerce: expr >-> stmt.
   Coercion Var_coerce: string >-> expr.
   Coercion Lit_coerce: val >-> expr.
   Coercion nat_coerce: nat >-> val.
@@ -266,7 +268,7 @@ Section Denote.
                      end
     | Mult a b  => l <- denote_expr a ;; r <- denote_expr b ;;
                      match l, r with
-                     | Vnat l, Vnat r => ret (Vnat (l - r))
+                     | Vnat l, Vnat r => ret (Vnat (l * r))
                      | _, _ => triggerNB
                      end
     | Load x ofs => x <- trigger (GetVar x) ;; ofs <- denote_expr ofs ;;
@@ -405,16 +407,13 @@ Section Denote.
     | Put x => v <- trigger (GetVar x) ;;
                  triggerSyscall "p" [v] ;; Ret Vnodef
     (* | Get x => retv <- triggerSyscall (1) [];; trigger (SetVar x retv);; Ret tt *)
-    | Call retv_name name params =>
-      args <- mapT (fun arg => trigger (GetVar arg)) params;;
-      retv_and_args_updated <- trigger (CallInternal name args);;
-      let '(retv, args_updated) := retv_and_args_updated in
-      if (length args_updated =? length params)%nat
+    | Call retv_name func_name arg_names =>
+      args <- mapT (fun arg => trigger (GetVar arg)) arg_names;;
+      '(retv, args_updated) <- trigger (CallInternal func_name args);;
+      if (length args_updated =? length arg_names)%nat
       then
-        mapT (fun param_and_arg_updated =>
-                let '(param, arg_updated) := param_and_arg_updated in
-                trigger (SetVar param arg_updated))
-             (combine params args_updated);;
+        mapT (fun '(arg_name, arg_updated) => trigger (SetVar arg_name arg_updated))
+             (combine arg_names args_updated);;
              trigger (SetVar retv_name retv) ;;
              ret Vnodef
       else triggerNB

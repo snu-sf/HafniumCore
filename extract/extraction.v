@@ -28,6 +28,7 @@ Separate Extraction
          (* LangTest.load_store_applied (********************** YJ: remove later ********************) *)
          Lang.eval_program
          LangTest.load_store_program
+         LangTest.rec_program
          (* LangTest.print_val *)
          (* LangTest.main *)
          (* LangTest.handle_Event *)

@@ -55,4 +55,8 @@ let rec run t =
   | TauF t -> run t
   | VisF (e, k) -> handle_Event e (fun x -> run (k x))
 
-let main = run (eval_program load_store_program)
+let main =
+           print_endline "" ;
+           run (eval_program load_store_program) ;
+           print_endline "-----------------------------------" ;
+           run (eval_program rec_program)
