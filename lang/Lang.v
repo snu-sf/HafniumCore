@@ -10,6 +10,8 @@ From ExtLib Require Import
      Data.String
      Structures.Monad
      Structures.Traversable
+     Structures.Foldable
+     Structures.Reducible
      Data.List.
 
 From ITree Require Import
@@ -28,6 +30,9 @@ Local Open Scope monad_scope.
 Local Open Scope string_scope.
 Require Import sflib.
 
+Require Import ClassicalDescription.
+About excluded_middle_informative.
+
 Set Implicit Arguments.
 (* Set Typeclasess Depth 4. *)
 (* Typeclasses eauto := debug 4. *)
@@ -41,6 +46,8 @@ Inductive val: Type :=
 (* | Vnodef *)
 .
 Definition Vnull := Vptr [].
+(* YJ: is it really same with nodef? or we need explicit nodef? *)
+Definition Vnodef := Vnull.
 
 Axiom dummy_client: forall A, A -> unit.
 
@@ -68,7 +75,14 @@ Inductive stmt : Type :=
 | Store (x: var) (ofs: expr) (e: expr) (* x->ofs := e *)
 | Put (v: var)
 (* | Get (x: var) *)
+| Call (retv_name: var) (func_name: string) (params: list var)
+(* YJ: "Call" has nome collision *)
+(* YJ: I used "var" instead of "var + val". We should "update" retvs into variables. *)
+| Expr (e: expr)
 .
+
+Inductive function: Type := mk_function { params: list var ; body: stmt }.
+Definition program: Type := (* list function. *) string -> option function.
 
 (* ========================================================================== *)
 (** ** Notations *)
@@ -185,6 +199,12 @@ Variant Event: Type -> Type :=
 | Yield: Event unit
 .
 
+(* YJ: Will be consumed internally *)
+Variant EventInternal: Type -> Type :=
+| CallInternal (func_name: string) (args: list val): EventInternal (val * list val)
+(* ordinary return value, "updated" args *)
+.
+
 Definition triggerUB {E A} `{Event -< E} : itree E A :=
   vis UB (fun v => match v: void with end)
 .
@@ -195,13 +215,13 @@ Definition triggerSyscall {E} `{Event -< E} : string -> list val -> itree E val 
   embed Syscall
 .
 
-Definition getN {E X} `{Event -< E} (x: option X): itree E X :=
+Definition unwrapN {E X} `{Event -< E} (x: option X): itree E X :=
   match x with
   | Some x => ret x
   | None => triggerNB
   end.
 
-Definition getU {E X} `{Event -< E} (x: option X): itree E X :=
+Definition unwarpU {E X} `{Event -< E} (x: option X): itree E X :=
   match x with
   | Some x => ret x
   | None => triggerUB
@@ -220,6 +240,7 @@ Section Denote.
   Context {eff : Type -> Type}.
   Context {HasImpState : ImpState -< eff}.
   Context {HasEvent : Event -< eff}.
+  Context {HasEventInternal : EventInternal -< eff}.
 
   (** _Imp_ expressions are denoted as [itree eff val], where the returned
       val in the tree is the val computed by the expression.
@@ -307,18 +328,19 @@ Section Denote.
       straightforward, except for [While], which uses our new [while] combinator
       over the computation that evaluates the conditional, and then the body if
       the former was true.  *)
-  Fixpoint denote_imp (s : stmt) : itree eff unit :=
+  Typeclasses eauto := debug 4.
+  Fixpoint denote_stmt (s : stmt) : itree eff unit :=
     match s with
     | Assign x e =>  v <- denote_expr e ;; trigger (SetVar x v)
-    | Seq a b    =>  denote_imp a ;; denote_imp b
+    | Seq a b    =>  denote_stmt a ;; denote_stmt b
     | If i t e   =>
       v <- denote_expr i ;;
-      if is_true v then denote_imp t else denote_imp e
+      if is_true v then denote_stmt t else denote_stmt e
 
     | While t b =>
       while (v <- denote_expr t ;;
 	           if is_true v
-             then denote_imp b ;; ret (inl tt)
+             then denote_stmt b ;; ret (inl tt)
              else ret (inr tt))
 
     | Skip => ret tt
@@ -328,7 +350,7 @@ Section Denote.
                            v <- trigger (GetVar x) ;;
                            match ofs, v with
                            | Vnat ofs, Vptr cts0 =>
-                             cts1 <- (getN (update_err cts0 ofs e)) ;;
+                             cts1 <- (unwrapN (update_err cts0 ofs e)) ;;
                                   (**** BELOW WAS AN ACTUAL MISTAKE *****)
                              (* cts1 <- (getN (update_err cts0 ofs v)) ;; *)
                                   trigger (SetVar x (Vptr cts1))
@@ -337,8 +359,150 @@ Section Denote.
     | Put x => v <- trigger (GetVar x) ;;
                  _ <- triggerSyscall "p" [v] ;; Ret tt
     (* | Get x => retv <- triggerSyscall (1) [];; trigger (SetVar x retv);; Ret tt *)
+    | Call retv_name name params =>
+      args <- mapT (fun arg => trigger (GetVar arg)) params;;
+      retv_and_args_updated <- trigger (CallInternal name args);;
+      let '(retv, args_updated) := retv_and_args_updated in
+      if (length args_updated =? length params)%nat
+      then 
+        mapT (fun param_and_arg_updated =>
+                let '(param, arg_updated) := param_and_arg_updated in
+                trigger (SetVar param arg_updated))
+             (combine params args_updated);;
+             trigger (SetVar retv_name retv)
+      else triggerNB
+    | Expr e => ret tt
     end.
 
+  Fixpoint denote_stmt2 (s : stmt) : itree eff val :=
+    match s with
+    | Assign x e =>  v <- denote_expr e ;; trigger (SetVar x v) ;; ret Vnodef
+    | Seq a b    =>  denote_stmt2 a ;; denote_stmt2 b
+    | If i t e   =>
+      v <- denote_expr i ;;
+      if is_true v then denote_stmt2 t else denote_stmt2 e
+
+    | While t b =>
+      while (v <- denote_expr t ;;
+               if is_true v
+               then v <- denote_stmt2 b ;; ret (inl tt)
+               else ret (inr tt))
+            ;;
+            ret Vnodef (* YJ: this is temporary. *)
+    | Skip => ret Vnodef
+    | Assume => triggerUB
+    | Guarantee => triggerNB
+    | Store x ofs e => ofs <- denote_expr ofs ;; e <- denote_expr e ;;
+                           v <- trigger (GetVar x) ;;
+                           match ofs, v with
+                           | Vnat ofs, Vptr cts0 =>
+                             cts1 <- (unwrapN (update_err cts0 ofs e)) ;;
+                                  (**** BELOW WAS AN ACTUAL MISTAKE *****)
+                             (* cts1 <- (getN (update_err cts0 ofs v)) ;; *)
+                                  trigger (SetVar x (Vptr cts1))
+                           | _, _ => triggerNB
+                           end ;;
+                           ret Vnodef
+    | Put x => v <- trigger (GetVar x) ;;
+                 _ <- triggerSyscall "p" [v] ;; Ret Vnodef
+    (* | Get x => retv <- triggerSyscall (1) [];; trigger (SetVar x retv);; Ret tt *)
+    | Call retv_name name params =>
+      args <- mapT (fun arg => trigger (GetVar arg)) params;;
+      retv_and_args_updated <- trigger (CallInternal name args);;
+      let '(retv, args_updated) := retv_and_args_updated in
+      if (length args_updated =? length params)%nat
+      then
+        mapT (fun param_and_arg_updated =>
+                let '(param, arg_updated) := param_and_arg_updated in
+                trigger (SetVar param arg_updated))
+             (combine params args_updated);;
+             trigger (SetVar retv_name retv) ;;
+             ret Vnodef
+      else triggerNB
+    | Expr e => denote_expr e
+    end.
+
+End Denote.
+
+Section Denote.
+
+  Open Scope expr_scope.
+  Open Scope stmt_scope.
+
+  Context {eff : Type -> Type}.
+  Context {HasImpState : ImpState -< eff}.
+  Context {HasEvent : Event -< eff}.
+
+  Definition denote_function (f: function): ktree (EventInternal +' eff) (list val) unit :=
+    fun args =>
+      if (length f.(params) =? length args)%nat
+      then
+        let new_body := fold_left (fun s i => (fst i) #:= (Lit (snd i)) #; s)
+                                  (* YJ: Why coercion does not work ?? *)
+                                  (combine f.(params) args) f.(body) in
+        denote_stmt new_body
+      else triggerNB
+  .
+
+  (* Axiom tm: forall T, itree (EventInternal +' eff) T. *)
+  (* Axiom tmp: itree (EventInternal +' eff) (val * list val). *)
+
+  (* Variable A B: Type. *)
+  (* (* Variable a: A. *) *)
+  (* Variable consumer: A -> B. *)
+  (* Inductive foo: Type -> Type := *)
+  (* | foo_intro (a: A): foo A *)
+  (* . *)
+  (* Definition bar: forall T, foo T -> consumer . *)
+  (* intros. destruct X. auto. *)
+  (* Defined. *)
+
+  Print Instances Traversable.
+  Print Instances Reducible.
+  Print Instances Foldable.
+
+  (* Variable params: list var. *)
+  (* Check (mapT (fun param => trigger (GetVar param)) params). *)
+
+  Definition denote_function2 (f: function):
+    (EventInternal ~> itree (EventInternal +' eff)) :=
+    fun T ei =>
+      let '(CallInternal func_name args) := ei in
+      if (length f.(params) =? length args)%nat
+      then
+        let new_body := fold_left (fun s i => (fst i) #:= (Lit (snd i)) #; s)
+                                  (* YJ: Why coercion does not work ?? *)
+                                  (combine f.(params) args) f.(body) in
+        retv <- denote_stmt2 new_body;;
+             params_updated <- mapT (fun param => trigger (GetVar param)) (f.(params));;
+             ret (retv, params_updated)
+      else triggerNB
+  .
+
+  Definition denote_function3 (ctx: program):
+    (EventInternal ~> itree (EventInternal +' eff)) :=
+    fun T ei =>
+      let '(CallInternal func_name args) := ei in
+      f <- unwrapN (ctx func_name) ;;
+      if (length f.(params) =? length args)%nat
+      then
+        let new_body := fold_left (fun s i => (fst i) #:= (Lit (snd i)) #; s)
+                                  (* YJ: Why coercion does not work ?? *)
+                                  (combine f.(params) args) f.(body) in
+        retv <- denote_stmt2 new_body;;
+             params_updated <- mapT (fun param => trigger (GetVar param)) (f.(params));;
+             ret (retv, params_updated)
+      else triggerNB
+  .
+
+  Definition denote_program (p: program) :=
+    (* mrec (denote_function3 p) (CallInternal "MAIN" []). *)
+    let sem := mrec (denote_function3 p) in
+    sem _ (CallInternal "MAIN" []).
+  (* Better readability *)
+
+  (* Definition denote_program (p: program): *)
+  (*   mrec-fix _ _ . *)
 End Denote.
 
 (* ========================================================================== *)
