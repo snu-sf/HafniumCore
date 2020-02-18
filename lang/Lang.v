@@ -80,7 +80,8 @@ Inductive stmt : Type :=
 .
 
 Inductive function: Type := mk_function { params: list var ; body: stmt }.
-Definition program: Type := (* list function. *) string -> option function.
+Definition program: Type := list (string * function).
+ (* string -> option function. *)
 
 (* ========================================================================== *)
 (** ** Notations *)
@@ -481,16 +482,17 @@ Section Denote.
     (EventInternal ~> itree (EventInternal +' eff)) :=
     fun T ei =>
       let '(CallInternal func_name args) := ei in
-      f <- unwrapN (ctx func_name) ;;
-      if (length f.(params) =? length args)%nat
-      then
-        let new_body := fold_left (fun s i => (fst i) #:= (Lit (snd i)) #; s)
-                                  (* YJ: Why coercion does not work ?? *)
-                                  (combine f.(params) args) f.(body) in
-        retv <- denote_stmt2 new_body;;
-             params_updated <- mapT (fun param => trigger (GetVar param)) (f.(params));;
-             ret (retv, params_updated)
-      else triggerNB
+      nf <- unwrapN (find (fun nf => string_dec func_name (fst nf)) ctx) ;;
+         let f := (snd nf) in
+         if (length f.(params) =? length args)%nat
+         then
+           let new_body := fold_left (fun s i => (fst i) #:= (Lit (snd i)) #; s)
+                                     (* YJ: Why coercion does not work ?? *)
+                                     (combine f.(params) args) f.(body) in
+           retv <- denote_stmt2 new_body;;
+                params_updated <- mapT (fun param => trigger (GetVar param)) (f.(params));;
+                ret (retv, params_updated)
+         else triggerNB
   .
 
   Definition denote_program (p: program) :=
@@ -668,99 +670,6 @@ Goal (burn 200 (@eval_stmt Assume)) = (burn 2 (eval_stmt Assume)).
   reflexivity.
 Qed.
 
-Require Extraction.
-
-(* Extraction "Lang.ml" burn. *)
-Require Import ExtrOcamlBasic.
-Require Import ExtrOcamlNatInt.
-Require Import ExtrOcamlString.
-
-
-Definition load_store x sum: stmt :=
-  sum #:= Vnat 0#;
-  x #:= Vptr (repeat (Vnat 0) 3)#;
-  #put x#;
-  (Store x 0 10)#;
-  #put x#;
-  (Store x 1 20)#;
-  #put x#;
-  (Store x 2 30)#;
-  #put x#;
-  #put sum#;
-  sum #:= sum + (Load x 0)#;
-  #put sum#;
-  sum #:= sum + (Load x 1)#;
-  #put sum#;
-  sum #:= sum + (Load x 2)#;
-  #put sum#;
-  Skip
-.
-
-Compute (burn 200 (eval_stmt (load_store "x" "sum"))).
-(* Definition main := (burn 100 (eval_stmt2 stmt_Assume)). *)
-(* Definition main := (burn 200 (eval_stmt2 (load_store "x" "sum"))). *)
-
-(* Require Import ExtrOcamlString. *)
-(* Extraction Blacklist String. *)
-
-Definition cl2s (cl: string): string := cl.
-Definition load_store_applied := load_store "x" "sum".
-Check (eval_stmt load_store_applied).
-Definition print_val: unit := tt.
-Definition handle_Event: unit := tt.
-Definition main: unit :=
-  let _ := print_val in
-  let _ := load_store_applied in
-  let _ := handle_Event in
-  tt.
-(* Axiom dummy_client: forall A, A -> unit. *)
-(* Extract Constant dummy_client => "fun _ -> ()". *)
-Extract Constant print_val => "
-let rec go v =
-  match v with
-  | Vnat n -> print_string ((string_of_int n) ^ "" "")
-  | Vptr cts -> print_string ""["" ; List.iter go cts ; print_string ""]"" in
-fun v -> go v ; print_endline "" ""
-"
-.
-
-Extract Constant cl2s => "fun cl -> String.concat """" (List.map (String.make 1) cl)".
-
-Extract Constant handle_Event =>
-"
-fun e k -> match e with
-  | NB -> failwith ""NB OCCURED""
-  | UB -> failwith ""UB OCCURED""
-  (* | Syscall (['p'], [v]) -> print_val v ; k (Obj.magic ()) *)
-  | Syscall ('p'::[], v::[]) -> print_val v ; k (Obj.magic ())
-  | Syscall (cl, vs) -> print_endline (cl2s cl) ;
-(* print_val (List.nth vs 0) ; *)
-(* print_int (length cl) ; *)
-(* print_int (length vs) ; *)
-                        failwith ""UNSUPPORTED SYSCALL""
-  | _ -> failwith ""NO MATCH""
-"
-.
-Extract Constant main =>
-"
-let rec run t =
-  match observe t with
-  | RetF r -> r
-  | TauF t -> run t
-  | VisF (e, k) -> handle_Event e (fun x -> run (k x)) in
-run (eval_stmt load_store_applied)
-"
-.
-
-(* Fixpoint val_iter (v: val) (f: nat -> unit): unit := *)
-(*   match v with *)
-(*   | Vnat n => dummy_client (f n) *)
-(*   | Vptr cts => List.fold_left (fun s i => dummy_client i) cts tt *)
-(*   end *)
-(* . *)
-
-Extraction "Lang.ml" load_store_applied eval_stmt stmt_Assume print_val main handle_Event
-           cl2s.
 
 (* ========================================================================== *)
 Section InterpImpProperties.

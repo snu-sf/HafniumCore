@@ -18,7 +18,7 @@ graph.dot
 .nia.cache
 .coqdeps.d
 
-*.ml
-*.mli
-
-!/lang/run.ml
+extract/*.ml
+extract/*.mli
+!extract/main.ml
+extract/_build/

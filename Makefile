@@ -1,11 +1,17 @@
 COQMODULE    := HafniumCore
 # COQTHEORIES  := $(wildcard */*.v) #*/*.v
 COQTHEORIES  := $(shell find . -iname '*.v')
+#https://stackoverflow.com/questions/4210042/how-to-exclude-a-directory-in-find-command
+#COQTHEORIES  := $(shell find . -path ./extract -prune -o -iname '*.v')
 
 .PHONY: all proof proof-quick graph
 
 all:
 	$(MAKE) proof
+	$(MAKE) extract
+
+extract: Makefile.coq $(COQTHEORIES) $(COQTHEORIES:.v=.vo)
+	cd extract; ocamlbuild -clean && ocamlbuild main.native
 
 graph:
 		sh make_graph.sh
