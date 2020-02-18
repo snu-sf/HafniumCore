@@ -82,9 +82,13 @@ Local Open Scope expr_scope.
 Local Open Scope stmt_scope.
 
 Definition rec_f x y r: stmt :=
-  #put x #;
+  (* #put x #; *)
   (#if x
-   then (y #:= (x - 1) #; #put x #; (Call r "f" [y]) #; #put x #; r #:= r + (x - 1))
+   then (y #:= (x - 1) #;
+           (* #put x #; *)
+           (Call r "f" [y]) #;
+           (* #put x #; *)
+           r #:= r + x)
    else (r #:= 0)
      fi)
     #;
@@ -107,6 +111,36 @@ Definition rec_program: program := [("main", rec_main_function) ;
 
 
 (* TODO: mutrec *)
+
+Definition mutrec_f x y r: stmt :=
+  (#if x
+   then (y #:= (x - 1) #;
+           (Call r "g" [y]) #;
+           r #:= r + x)
+   else (r #:= 0)
+     fi)
+    #;
+    r
+.
+
+Definition mutrec_g x y r: stmt :=
+  (#if x
+   then (y #:= (x - 1) #;
+           (Call r "f" [y]) #;
+           r #:= r + x)
+   else (r #:= 0)
+     fi)
+    #;
+    r
+.
+
+Definition mutrec_f_function: function := mk_function ["x"] (mutrec_f "x" "local0" "local1").
+Definition mutrec_g_function: function := mk_function ["x"] (mutrec_g "x" "local0" "local1").
+
+Definition mutrec_program: program := [("main", rec_main_function) ;
+                                      ("f", mutrec_f_function) ;
+                                      ("g", mutrec_g_function)].
+
 (* TODO: move *)
 
 

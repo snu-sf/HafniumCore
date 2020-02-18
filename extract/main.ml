@@ -59,4 +59,6 @@ let main =
            print_endline "" ;
            run (eval_program load_store_program) ;
            print_endline "-----------------------------------" ;
-           run (eval_program rec_program)
+           run (eval_program rec_program) ;
+           print_endline "-----------------------------------" ;
+           run (eval_program mutrec_program)
