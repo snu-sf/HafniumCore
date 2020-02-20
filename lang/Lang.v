@@ -60,7 +60,7 @@ Inductive expr : Type :=
 | Minus (_ _ : expr)
 | Mult  (_ _ : expr)
 | Load (_: var) (_: expr)
-| CoqCode (_: list expr) (P: list val -> bool)
+| CoqCode (_: list expr) (P: list val -> val)
 .
 
 (** The statements are straightforward. The [While] statement is the only
@@ -292,9 +292,10 @@ Section Denote.
                       end
     | CoqCode es P =>
       vs <- mapT (denote_expr) es ;;
-         ret (if (P vs)
-              then Vtrue
-              else Vfalse)
+         ret (P vs)
+         (* (if (P vs) *)
+         (*      then Vtrue *)
+         (*      else Vfalse) *)
     end.
 
   (** We turn to the denotation of statements. As opposed to expressions,

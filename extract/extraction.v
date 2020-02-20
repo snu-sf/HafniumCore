@@ -27,6 +27,8 @@ Separate Extraction
          (* Lang.eval_stmt (********************** YJ: remove later ********************) *)
          (* LangTest.load_store_applied (********************** YJ: remove later ********************) *)
          Lang.eval_program
+         Lang.Vtrue
+         Lang.Vfalse
          LangTest.load_store_program
          LangTest.rec_program
          LangTest.mutrec_program
