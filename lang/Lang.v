@@ -49,6 +49,9 @@ Definition Vnull := Vptr [].
 (* YJ: is it really same with nodef? or we need explicit nodef? *)
 Definition Vnodef := Vnull.
 
+Definition Vtrue := Vnat 1.
+Definition Vfalse := Vnat 0.
+
 (** Expressions are made of variables, constant literals, and arithmetic operations. *)
 Inductive expr : Type :=
 | Var (_ : var)
@@ -57,6 +60,7 @@ Inductive expr : Type :=
 | Minus (_ _ : expr)
 | Mult  (_ _ : expr)
 | Load (_: var) (_: expr)
+| CoqCode (_: list expr) (P: list val -> bool)
 .
 
 (** The statements are straightforward. The [While] statement is the only
@@ -71,12 +75,16 @@ Inductive stmt : Type :=
 | Assume
 | Guarantee
 | Store (x: var) (ofs: expr) (e: expr) (* x->ofs := e *)
-| Put (v: var)
+| Put (e: expr)
 (* | Get (x: var) *)
 | Call (retv_name: var) (func_name: string) (params: list var)
 (* YJ: "Call" has nome collision *)
 (* YJ: I used "var" instead of "var + val". We should "update" retvs into variables. *)
 | Expr (e: expr)
+(* YJ: What kind of super power do we need?
+e.g. See if x has even number --> we need something like "MetaIf (var -> P: Prop)"
+ *)
+(* | CoqCode (_: list var) (P: list val -> bool) *)
 .
 
 Inductive function: Type := mk_function { params: list var ; body: stmt }.
@@ -282,6 +290,11 @@ Section Denote.
                         end
                       | _, _ => triggerNB
                       end
+    | CoqCode es P =>
+      vs <- mapT (denote_expr) es ;;
+         ret (if excluded_middle_informative (P vs)
+              then Vtrue
+              else Vfalse)
     end.
 
   (** We turn to the denotation of statements. As opposed to expressions,
@@ -332,9 +345,10 @@ Section Denote.
       over the computation that evaluates the conditional, and then the body if
       the former was true.  *)
   Typeclasses eauto := debug 4.
-  Fixpoint denote_stmt (s : stmt) : itree eff unit :=
+
+  Fixpoint denote_stmt (s : stmt) : itree eff val :=
     match s with
-    | Assign x e =>  v <- denote_expr e ;; trigger (SetVar x v)
+    | Assign x e =>  v <- denote_expr e ;; trigger (SetVar x v) ;; ret Vnodef
     | Seq a b    =>  denote_stmt a ;; denote_stmt b
     | If i t e   =>
       v <- denote_expr i ;;
@@ -342,53 +356,8 @@ Section Denote.
 
     | While t b =>
       while (v <- denote_expr t ;;
-	           if is_true v
-             then denote_stmt b ;; ret (inl tt)
-             else ret (inr tt))
-
-    | Skip => ret tt
-    | Assume => triggerUB
-    | Guarantee => triggerNB
-    | Store x ofs e => ofs <- denote_expr ofs ;; e <- denote_expr e ;;
-                           v <- trigger (GetVar x) ;;
-                           match ofs, v with
-                           | Vnat ofs, Vptr cts0 =>
-                             cts1 <- (unwrapN (update_err cts0 ofs e)) ;;
-                                  (**** BELOW WAS AN ACTUAL MISTAKE *****)
-                             (* cts1 <- (getN (update_err cts0 ofs v)) ;; *)
-                                  trigger (SetVar x (Vptr cts1))
-                           | _, _ => triggerNB
-                           end
-    | Put x => v <- trigger (GetVar x) ;;
-                 _ <- triggerSyscall "p" [v] ;; Ret tt
-    (* | Get x => retv <- triggerSyscall (1) [];; trigger (SetVar x retv);; Ret tt *)
-    | Call retv_name name params =>
-      args <- mapT (fun arg => trigger (GetVar arg)) params;;
-      retv_and_args_updated <- trigger (CallInternal name args);;
-      let '(retv, args_updated) := retv_and_args_updated in
-      if (length args_updated =? length params)%nat
-      then 
-        mapT (fun param_and_arg_updated =>
-                let '(param, arg_updated) := param_and_arg_updated in
-                trigger (SetVar param arg_updated))
-             (combine params args_updated);;
-             trigger (SetVar retv_name retv)
-      else triggerNB
-    | Expr e => ret tt
-    end.
-
-  Fixpoint denote_stmt2 (s : stmt) : itree eff val :=
-    match s with
-    | Assign x e =>  v <- denote_expr e ;; trigger (SetVar x v) ;; ret Vnodef
-    | Seq a b    =>  denote_stmt2 a ;; denote_stmt2 b
-    | If i t e   =>
-      v <- denote_expr i ;;
-      if is_true v then denote_stmt2 t else denote_stmt2 e
-
-    | While t b =>
-      while (v <- denote_expr t ;;
                if is_true v
-               then v <- denote_stmt2 b ;; ret (inl tt)
+               then v <- denote_stmt b ;; ret (inl tt)
                else ret (inr tt))
             ;;
             ret Vnodef (* YJ: this is temporary. *)
@@ -406,7 +375,7 @@ Section Denote.
                            | _, _ => triggerNB
                            end ;;
                            ret Vnodef
-    | Put x => v <- trigger (GetVar x) ;;
+    | Put e => v <- denote_expr e ;;
                  triggerSyscall "p" [v] ;; Ret Vnodef
     (* | Get x => retv <- triggerSyscall (1) [];; trigger (SetVar x retv);; Ret tt *)
     | Call retv_name func_name arg_names =>
@@ -433,17 +402,6 @@ Section Denote.
   Context {HasImpState : ImpState -< eff}.
   Context {HasEvent : Event -< eff}.
 
-  Definition denote_function (f: function): ktree (EventInternal +' eff) (list val) unit :=
-    fun args =>
-      if (length f.(params) =? length args)%nat
-      then
-        let new_body := fold_left (fun s i => (fst i) #:= (Lit (snd i)) #; s)
-                                  (* YJ: Why coercion does not work ?? *)
-                                  (combine f.(params) args) f.(body) in
-        denote_stmt new_body
-      else triggerNB
-  .
-
   (* Axiom tm: forall T, itree (EventInternal +' eff) T. *)
   (* Axiom tmp: itree (EventInternal +' eff) (val * list val). *)
 
@@ -464,22 +422,7 @@ Section Denote.
   (* Variable params: list var. *)
   (* Check (mapT (fun param => trigger (GetVar param)) params). *)
 
-  Definition denote_function2 (f: function):
-    (EventInternal ~> itree (EventInternal +' eff)) :=
-    fun T ei =>
-      let '(CallInternal func_name args) := ei in
-      if (length f.(params) =? length args)%nat
-      then
-        let new_body := fold_left (fun s i => (fst i) #:= (Lit (snd i)) #; s)
-                                  (* YJ: Why coercion does not work ?? *)
-                                  (combine f.(params) args) f.(body) in
-        retv <- denote_stmt2 new_body;;
-             params_updated <- mapT (fun param => trigger (GetVar param)) (f.(params));;
-             ret (retv, params_updated)
-      else triggerNB
-  .
-
-  Definition denote_function3 (ctx: program):
+  Definition denote_function (ctx: program):
     (EventInternal ~> itree (EventInternal +' eff)) :=
     fun T ei =>
       let '(CallInternal func_name args) := ei in
@@ -491,7 +434,7 @@ Section Denote.
                                      (* YJ: Why coercion does not work ?? *)
                                      (combine f.(params) args) f.(body) in
            trigger PushEnv ;;
-           retv <- denote_stmt2 new_body;;
+           retv <- denote_stmt new_body;;
            params_updated <- mapT (fun param => trigger (GetVar param)) (f.(params));;
            trigger PopEnv ;;
            ret (retv, params_updated)
@@ -500,7 +443,7 @@ Section Denote.
 
   Definition denote_program (p: program) :=
     (* mrec (denote_function3 p) (CallInternal "MAIN" []). *)
-    let sem := mrec (denote_function3 p) in
+    let sem := mrec (denote_function p) in
     sem _ (CallInternal "main" []).
   (* Better readability *)
 
@@ -654,14 +597,14 @@ Definition interp_imp  {E A} (t : itree (ImpState +' E) A) :
 
 Section TMP.
 Variable s: stmt.
-Check (denote_stmt s): itree (ImpState +' Event +' EventInternal) unit.
+Check (denote_stmt s): itree (ImpState +' Event +' EventInternal) val.
 Check interp_imp (denote_stmt s):
-  stateT env (itree (ImpState +' Event +' EventInternal)) unit.
+  stateT env (itree (ImpState +' Event +' EventInternal)) val.
 Eval compute in (stateT env (itree (ImpState +' Event +' EventInternal))).
 Check interp_imp (denote_stmt s):
   env ->
-  itree (ImpState +' Event +' EventInternal) (env * unit).
-Check interp_imp (denote_stmt s) empty: itree (Event +' EventInternal) (env * unit).
+  itree (ImpState +' Event +' EventInternal) (env * val).
+Check interp_imp (denote_stmt s) empty: itree (Event +' EventInternal) (env * val).
 End TMP.
 (* Check (@interp_Event _ _ (interp_imp (denote_imp s) empty)). *)
 (* Check (interp_Event2 (interp_imp (denote_imp s) empty)). *)
@@ -673,34 +616,28 @@ End TMP.
 (* Definition eval_imp (s: stmt) {E} : itree (void1 +' E) (env * unit) := *)
 (*   interp_Event (interp_imp (denote_imp s) empty). *)
 
-Fail Definition eval_imp (s: stmt) : itree void1 (env * unit) :=
-  interp_imp (denote_imp s) empty.
-
 Definition eval_program (p: program): itree Event (env * (val * list val))
   := interp_imp (denote_program p) [].
-Definition eval_stmt (s: stmt) : itree (Event +' EventInternal) (env * unit)
-  := ((interp_imp (denote_stmt s) []))
-.
 
 (** Equipped with this evaluator, we can now compute.
     Naturally since Coq is total, we cannot do it directly inside of it.
     We can either rely on extraction, or use some fuel.
  *)
-Compute (burn 200 (eval_stmt (fact "input" "output" 6))).
-Definition test_assume := eval_stmt Assume.
+(* Compute (burn 200 (eval_stmt (fact "input" "output" 6))). *)
+(* Definition test_assume := eval_stmt Assume. *)
                             
 (* Definition test_interp : itree IO unit -> bool := fun t => *)
 Definition stmt_Assume: stmt := Assume.
-Compute (burn 200 (eval_stmt (fact "input" "output" 6))).
-Compute (burn 200 (eval_stmt Assume)).
-Compute (burn 200 (eval_stmt Guarantee)).
+(* Compute (burn 200 (eval_stmt (fact "input" "output" 6))). *)
+(* Compute (burn 200 (eval_stmt Assume)). *)
+(* Compute (burn 200 (eval_stmt Guarantee)). *)
 Goal forall E R, (burn 200 (@ITree.spin E R)) = (burn 2 (ITree.spin)).
   reflexivity.
 Qed.
 
-Goal (burn 200 (@eval_stmt Assume)) = (burn 2 (eval_stmt Assume)).
-  reflexivity.
-Qed.
+(* Goal (burn 200 (@eval_stmt Assume)) = (burn 2 (eval_stmt Assume)). *)
+(*   reflexivity. *)
+(* Qed. *)
 
 
 (* ========================================================================== *)

@@ -183,6 +183,25 @@ Definition move_program: program := [("main", move_main_function) ;
 
 
 
+Extract Constant excluded_middle_informative => "false".
+
+Definition coqcode_main x: stmt :=
+  x #:= 25 #;
+    (#if (CoqCode [Var x] (fun v =>
+                          match v with
+                          | hd :: _ => excluded_middle_informative (exists w, w * w = hd)
+                          | _ => false
+                          end))
+      then #put 555
+      else #put 666 fi)
+.
+
+Definition coqcode_main_function: function :=
+  mk_function [] (coqcode_main "local0").
+
+Definition coqcode_program: program := [("main", coqcode_main_function)].
+
+
 
 
 

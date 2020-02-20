@@ -63,4 +63,7 @@ let main =
            print_endline "-----------------------------------" ;
            run (eval_program mutrec_program) ;
            print_endline "-----------------------------------" ;
-           run (eval_program move_program)
+           run (eval_program move_program) ;
+           print_endline "-----------------------------------" ;
+           run (eval_program coqcode_program) ;
+           ()

@@ -31,6 +31,7 @@ Separate Extraction
          LangTest.rec_program
          LangTest.mutrec_program
          LangTest.move_program
+         LangTest.coqcode_program
          (* LangTest.print_val *)
          (* LangTest.main *)
          (* LangTest.handle_Event *)
