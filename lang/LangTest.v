@@ -183,15 +183,21 @@ Definition move_program: program := [("main", move_main_function) ;
 
 
 
-Extract Constant excluded_middle_informative => "false".
+Definition coqcode_coqcode: list val -> bool :=
+  (fun v =>
+     match v with
+     | hd :: _ => excluded_middle_informative (exists w, w * w = hd)
+     | _ => false
+     end).
+
+(* Extract Constant excluded_middle_informative => "true". (* YJ: To avouid crash *) *)
+Extract Constant coqcode_coqcode => "fun _ -> print_endline ""Is Prop true?"" ;
+                                      (read_int() = 0)
+                                      ".
 
 Definition coqcode_main x: stmt :=
   x #:= 25 #;
-    (#if (CoqCode [Var x] (fun v =>
-                          match v with
-                          | hd :: _ => excluded_middle_informative (exists w, w * w = hd)
-                          | _ => false
-                          end))
+    (#if (CoqCode [Var x] coqcode_coqcode)
       then #put 555
       else #put 666 fi)
 .

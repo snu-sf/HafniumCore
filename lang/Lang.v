@@ -292,7 +292,7 @@ Section Denote.
                       end
     | CoqCode es P =>
       vs <- mapT (denote_expr) es ;;
-         ret (if excluded_middle_informative (P vs)
+         ret (if (P vs)
               then Vtrue
               else Vfalse)
     end.
