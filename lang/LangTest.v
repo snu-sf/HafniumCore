@@ -40,32 +40,37 @@ Import ImpNotations.
 Set Implicit Arguments.
 
 
-Definition load_store x sum: stmt :=
-  sum #:= Vnat 0#;
-  x #:= Vptr (repeat (Vnat 0) 3)#;
-  #put x#;
-  (Store x 0 10)#;
-  #put x#;
-  (Store x 1 20)#;
-  #put x#;
-  (Store x 2 30)#;
-  #put x#;
-  #put sum#;
-  sum #:= sum + (Load x 0)#;
-  #put sum#;
-  sum #:= sum + (Load x 1)#;
-  #put sum#;
-  sum #:= sum + (Load x 2)#;
-  #put sum#;
-  Skip
-.
 
-Definition load_store_function: function := mk_function [] (load_store "x" "sum").
+Module LoadStore.
 
-Definition load_store_program: program := [("main", load_store_function)].
+  Definition main x sum: stmt :=
+    sum #:= Vnat 0#;
+        x #:= Vptr (repeat (Vnat 0) 3)#;
+        #put x#;
+        (Store x 0 10)#;
+        #put x#;
+        (Store x 1 20)#;
+        #put x#;
+        (Store x 2 30)#;
+        #put x#;
+        #put sum#;
+        sum #:= sum + (Load x 0)#;
+                                #put sum#;
+                                sum #:= sum + (Load x 1)#;
+                                                        #put sum#;
+                                                        sum #:= sum + (Load x 2)#;
+                                                                                #put sum#;
+                                                                                Skip
+  .
 
-(* Extraction "LangTest.ml" load_store_program. *)
-Check (eval_program load_store_program).
+  Definition function: function := mk_function [] (main "x" "sum").
+
+  Definition program: program := [("main", function)].
+
+  (* Extraction "LangTest.ml" load_store_program. *)
+  Check (eval_program program).
+
+End LoadStore.
 
 
 Section TMP.
@@ -81,133 +86,137 @@ End TMP.
 Local Open Scope expr_scope.
 Local Open Scope stmt_scope.
 
-Definition rec_f x y r: stmt :=
-  (* #put x #; *)
-  (#if x
-   then (y #:= (x - 1) #;
-           (* #put x #; *)
-           (Call r "f" [y]) #;
-           (* #put x #; *)
-           r #:= r + x)
-   else (r #:= 0)
-     fi)
-    #;
-    (* #put r #; *)
-    r
-.
 
-Definition rec_f_function: function := mk_function ["x"] (rec_f "x" "local0" "local1").
+Module Rec.
+  Definition f x y r: stmt :=
+    (#if x
+      then (y #:= (x - 1) #;
+              (Call r "f" [y]) #;
+              r #:= r + x)
+      else (r #:= 0)
+             fi)
+      #;
+      Return r
+  .
 
-Definition rec_main x r: stmt :=
-  x #:= 10 #;
-    (Call  r "f" [x]) #;
-    #put r
-.
+  Definition f_function: function := mk_function ["x"] (f "x" "local0" "local1").
 
-Definition rec_main_function: function := mk_function [] (rec_main "local0" "local1").
+  Definition main x r: stmt :=
+    x #:= 10 #;
+      (Call  r "f" [x]) #;
+      #put r
+  .
 
-Definition rec_program: program := [("main", rec_main_function) ;
-                                      ("f", rec_f_function)].
+  Definition main_function: function := mk_function [] (main "local0" "local1").
+
+  Definition program: program := [("main", main_function) ;
+                                    ("f", f_function)].
+
+End Rec.
 
 
-(* TODO: mutrec *)
 
-Definition mutrec_f x y r: stmt :=
-  (#if x
-   then (y #:= (x - 1) #;
-           (Call r "g" [y]) #;
-           r #:= r + x)
-   else (r #:= 0)
-     fi)
-    #;
-    r
-.
+Module MutRec.
 
-Definition mutrec_g x y r: stmt :=
-  (#if x
-   then (y #:= (x - 1) #;
-           (Call r "f" [y]) #;
-           r #:= r + x)
-   else (r #:= 0)
-     fi)
-    #;
-    r
-.
+  Definition f x y r: stmt :=
+    (#if x
+      then (y #:= (x - 1) #;
+              (Call r "g" [y]) #;
+              r #:= r + x)
+      else (r #:= 0)
+             fi)
+      #;
+      Return r
+  .
 
-Definition mutrec_f_function: function := mk_function ["x"] (mutrec_f "x" "local0" "local1").
-Definition mutrec_g_function: function := mk_function ["x"] (mutrec_g "x" "local0" "local1").
+  Definition g x y r: stmt :=
+    (#if x
+      then (y #:= (x - 1) #;
+              (Call r "f" [y]) #;
+              r #:= r + x)
+      else (r #:= 0)
+             fi)
+      #;
+      Return r
+  .
 
-Definition mutrec_program: program := [("main", rec_main_function) ;
-                                      ("f", mutrec_f_function) ;
-                                      ("g", mutrec_g_function)].
+  Definition f_function: function := mk_function ["x"] (f "x" "local0" "local1").
+  Definition g_function: function := mk_function ["x"] (g "x" "local0" "local1").
 
-(* TODO: move *)
+  Definition program: program := [("main", Rec.main_function) ;
+                                    ("f", f_function) ;
+                                    ("g", g_function)].
+End MutRec.
+
+
+
 (* YJ: if we just use "r", not "unused", something weird will happen *)
 (* TODO: address it better *)
-Definition move_f x y accu unused: stmt :=
-  (* #put x #; *)
-  (#if x
-   then (y #:= (x - 1) #;
-           (* #put 444 #; *)
-           (Call unused "f" [y ; accu]) #;
-           (* #put 555 #; *)
-           accu #:= accu + x #;
-           (* #put 666 #; *)
-           Skip
-        )
-   else
-     (* #put 777 #; *)
-     (accu #:= 0)
-     fi)
-    #;
-    77777
-.
+Module Move.
+  Definition f x y accu unused: stmt :=
+    (#if x
+      then (y #:= (x - 1) #;
+              (Call unused "f" [y ; accu]) #;
+              accu #:= accu + x #;
+                                Skip
+           )
+      else
+        (accu #:= 0)
+          fi)
+      #;
+      Return 77777
+  .
 
-Definition move_main x accu unused: stmt :=
-  x #:= 10 #;
-    accu #:= 1000 #;
-    (Call unused "f" [x ; accu]) #;
-    #put accu
-.
+  Definition main x accu unused: stmt :=
+    x #:= 10 #;
+      accu #:= 1000 #;
+      (Call unused "f" [x ; accu]) #;
+      #put accu
+  .
 
-Definition move_f_function: function := mk_function ["x" ; "accu"]
-                                                    (move_f "x" "local0" "accu" "local1").
-Definition move_main_function: function :=
-  mk_function [] (move_main "local0" "local1" "local2").
+  Definition f_function: function := mk_function ["x" ; "accu"]
+                                                      (f "x" "local0" "accu" "local1").
+  Definition main_function: function :=
+    mk_function [] (main "local0" "local1" "local2").
 
-Definition move_program: program := [("main", move_main_function) ;
-                                       ("f", move_f_function)].
+  Definition program: program := [("main", main_function) ;
+                                    ("f", f_function)].
+
+End Move.
 
 
 
 
 
+Module CoqCode.
 
-Definition coqcode_coqcode: list val -> val :=
-  (fun v =>
-     match v with
-     | hd :: _ => if excluded_middle_informative (exists w, w * w = hd)
-                  then Vtrue
-                  else Vfalse
-     | _ => Vfalse
-     end).
+  Definition coqcode: list val -> val :=
+    (fun v =>
+       match v with
+       | hd :: _ => if excluded_middle_informative (exists w, w * w = hd)
+                    then Vtrue
+                    else Vfalse
+       | _ => Vfalse
+       end).
 
-(* Extract Constant excluded_middle_informative => "true". (* YJ: To avouid crash *) *)
-Extract Constant coqcode_coqcode => "fun _ -> print_endline ""Is Prop true?"" ;
+  (* Extract Constant excluded_middle_informative => "true". (* YJ: To avouid crash *) *)
+  Extract Constant coqcode => "fun _ -> print_endline ""Is Prop true?"" ;
                                       if (read_int() = 0) then coq_Vtrue else coq_Vfalse
                                       ".
 
-Definition coqcode_main x: stmt :=
-  x #:= 25 #;
-    (#if (CoqCode [Var x] coqcode_coqcode)
-      then #put 555
-      else #put 666 fi)
-.
+  Definition main x: stmt :=
+    x #:= 25 #;
+      (#if (CoqCode [Var x] coqcode)
+        then #put 555
+        else #put 666 fi)
+  .
 
-Definition coqcode_main_function: function :=
-  mk_function [] (coqcode_main "local0").
+  Definition main_function: function :=
+    mk_function [] (main "local0").
 
-Definition coqcode_program: program := [("main", coqcode_main_function)].
+  Definition program: program := [("main", main_function)].
+
+End CoqCode.
 
 
 

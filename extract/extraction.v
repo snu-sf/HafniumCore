@@ -29,11 +29,11 @@ Separate Extraction
          Lang.eval_program
          Lang.Vtrue
          Lang.Vfalse
-         LangTest.load_store_program
-         LangTest.rec_program
-         LangTest.mutrec_program
-         LangTest.move_program
-         LangTest.coqcode_program
+         LangTest.LoadStore.program
+         LangTest.Rec.program
+         LangTest.MutRec.program
+         LangTest.Move.program
+         LangTest.CoqCode.program
          (* LangTest.print_val *)
          (* LangTest.main *)
          (* LangTest.handle_Event *)

@@ -80,11 +80,14 @@ Inductive stmt : Type :=
 | Call (retv_name: var) (func_name: string) (params: list var)
 (* YJ: "Call" has nome collision *)
 (* YJ: I used "var" instead of "var + val". We should "update" retvs into variables. *)
-| Expr (e: expr)
+(* | Expr (e: expr) *)
 (* YJ: What kind of super power do we need?
 e.g. See if x has even number --> we need something like "MetaIf (var -> P: Prop)"
  *)
 (* | CoqCode (_: list var) (P: list val -> bool) *)
+| Return (e: expr)
+| Break
+| Continue
 .
 
 Inductive function: Type := mk_function { params: list var ; body: stmt }.
@@ -97,11 +100,11 @@ Definition program: Type := list (string * function).
 Module ImpNotations.
 
   (** A few notations for convenience.  *)
-  Definition Expr_coerce: expr -> stmt := Expr.
+  (* Definition Expr_coerce: expr -> stmt := Expr. *)
   Definition Var_coerce: string -> expr := Var.
   Definition Lit_coerce: val -> expr := Lit.
   Definition nat_coerce: nat -> val := Vnat.
-  Coercion Expr_coerce: expr >-> stmt.
+  (* Coercion Expr_coerce: expr >-> stmt. *)
   Coercion Var_coerce: string >-> expr.
   Coercion Lit_coerce: val >-> expr.
   Coercion nat_coerce: nat >-> val.
@@ -298,6 +301,21 @@ Section Denote.
          (*      else Vfalse) *)
     end.
 
+  Inductive control: Type :=
+  | CNormal
+  | CContinue
+  | CBreak
+  | CReturn
+  .
+
+  Definition is_normal (c: control): bool := match c with | CNormal => true | _ => false end.
+  (* Definition pop_control (c: control): control := *)
+  (*   match c with *)
+  (*   | CReturn => CReturn *)
+  (*   | _ => CNormal *)
+  (*   end *)
+  (* . *)
+
   (** We turn to the denotation of statements. As opposed to expressions,
       statements do not return any val: their semantic domain is therefore
       [itree eff unit]. The most interesting construct is, naturally, [while].
@@ -327,8 +345,12 @@ Section Denote.
       That is, the right tag [inr tt] says to exit the loop,
       while the [inl tt] says to continue. *)
 
-  Definition while (step : itree eff (unit + unit)) : itree eff unit :=
+  (* Definition while (step: itree eff ((control * unit) + unit)): itree eff unit := *)
+  (*   iter (C := Kleisli _) (fun _ => step) (admit "", tt). *)
+  Definition while (step: itree eff (unit + (control * val))): itree eff (control * val) :=
     iter (C := Kleisli _) (fun _ => step) tt.
+  (* Definition while (step : itree eff (unit + unit)) : itree eff unit := *)
+  (*   iter (C := Kleisli _) (fun _ => step) tt. *)
 
   (** Casting vals into [bool]:  [0] corresponds to [false] and any nonzero
       val corresponds to [true].  *)
@@ -347,37 +369,41 @@ Section Denote.
       the former was true.  *)
   Typeclasses eauto := debug 4.
 
-  Fixpoint denote_stmt (s : stmt) : itree eff val :=
+  Fixpoint denote_stmt (s : stmt) : itree eff (control * val) :=
     match s with
-    | Assign x e =>  v <- denote_expr e ;; trigger (SetVar x v) ;; ret Vnodef
-    | Seq a b    =>  denote_stmt a ;; denote_stmt b
+    | Assign x e =>  v <- denote_expr e ;; trigger (SetVar x v) ;; ret (CNormal, Vnodef)
+    | Seq a b    =>  '(c, v) <- denote_stmt a ;; if (is_normal c)
+                                                 then denote_stmt b
+                                                 else ret (c, v)
     | If i t e   =>
       v <- denote_expr i ;;
       if is_true v then denote_stmt t else denote_stmt e
 
     | While t b =>
-      while (v <- denote_expr t ;;
-               if is_true v
-               then v <- denote_stmt b ;; ret (inl tt)
-               else ret (inr tt))
-            ;;
-            ret Vnodef (* YJ: this is temporary. *)
-    | Skip => ret Vnodef
+      (while (v <- denote_expr t ;;
+                if is_true v
+                then '(c, v) <- denote_stmt b ;;
+                      match c with
+                      | CNormal | CContinue => ret (inl tt)
+                      | CBreak => ret (inr (CNormal, v))
+                      | CReturn => ret (inr (CReturn, v))
+                      end
+                else ret (inr (CNormal, Vnodef (* YJ: this is temporary *)))))
+    | Skip => ret (CNormal, Vnodef)
     | Assume => triggerUB
     | Guarantee => triggerNB
+    (* | _ => triggerUB *)
     | Store x ofs e => ofs <- denote_expr ofs ;; e <- denote_expr e ;;
                            v <- trigger (GetVar x) ;;
                            match ofs, v with
                            | Vnat ofs, Vptr cts0 =>
                              cts1 <- (unwrapN (update_err cts0 ofs e)) ;;
-                                  (**** BELOW WAS AN ACTUAL MISTAKE *****)
-                             (* cts1 <- (getN (update_err cts0 ofs v)) ;; *)
                                   trigger (SetVar x (Vptr cts1))
                            | _, _ => triggerNB
                            end ;;
-                           ret Vnodef
+                           ret (CNormal, Vnodef)
     | Put e => v <- denote_expr e ;;
-                 triggerSyscall "p" [v] ;; Ret Vnodef
+                 triggerSyscall "p" [v] ;; Ret (CNormal, Vnodef)
     (* | Get x => retv <- triggerSyscall (1) [];; trigger (SetVar x retv);; Ret tt *)
     | Call retv_name func_name arg_names =>
       args <- mapT (fun arg => trigger (GetVar arg)) arg_names;;
@@ -387,9 +413,12 @@ Section Denote.
         mapT (fun '(arg_name, arg_updated) => trigger (SetVar arg_name arg_updated))
              (combine arg_names args_updated);;
              trigger (SetVar retv_name retv) ;;
-             ret Vnodef
+             ret (CNormal, Vnodef)
       else triggerNB
-    | Expr e => denote_expr e
+    (* | Expr e => denote_expr e *)
+    | Return e => v <- denote_expr e ;; Ret (CReturn, v)
+    | Break => Ret (CBreak, Vnodef)
+    | Continue => Ret (CContinue, Vnodef)
     end.
 
 End Denote.
@@ -435,7 +464,8 @@ Section Denote.
                                      (* YJ: Why coercion does not work ?? *)
                                      (combine f.(params) args) f.(body) in
            trigger PushEnv ;;
-           retv <- denote_stmt new_body;;
+           '(_, retv) <- denote_stmt new_body;;
+           (* YJ: maybe we can check whether "control" is return (not break/continue) here *)
            params_updated <- mapT (fun param => trigger (GetVar param)) (f.(params));;
            trigger PopEnv ;;
            ret (retv, params_updated)
@@ -598,14 +628,15 @@ Definition interp_imp  {E A} (t : itree (ImpState +' E) A) :
 
 Section TMP.
 Variable s: stmt.
-Check (denote_stmt s): itree (ImpState +' Event +' EventInternal) val.
+Check (denote_stmt s): itree (ImpState +' Event +' EventInternal) (control * val).
 Check interp_imp (denote_stmt s):
-  stateT env (itree (ImpState +' Event +' EventInternal)) val.
+  stateT env (itree (ImpState +' Event +' EventInternal)) (control * val).
 Eval compute in (stateT env (itree (ImpState +' Event +' EventInternal))).
 Check interp_imp (denote_stmt s):
   env ->
-  itree (ImpState +' Event +' EventInternal) (env * val).
-Check interp_imp (denote_stmt s) empty: itree (Event +' EventInternal) (env * val).
+  itree (ImpState +' Event +' EventInternal) (env * (control * val)).
+Check interp_imp (denote_stmt s) empty: itree (Event +' EventInternal)
+                                              (env * (control * val)).
 End TMP.
 (* Check (@interp_Event _ _ (interp_imp (denote_imp s) empty)). *)
 (* Check (interp_Event2 (interp_imp (denote_imp s) empty)). *)

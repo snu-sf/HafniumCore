@@ -57,13 +57,13 @@ let rec run t =
 
 let main =
            print_endline "" ;
-           run (eval_program load_store_program) ;
+           run (eval_program LoadStore.program) ;
            print_endline "-----------------------------------" ;
-           run (eval_program rec_program) ;
+           run (eval_program Rec.program) ;
            print_endline "-----------------------------------" ;
-           run (eval_program mutrec_program) ;
+           run (eval_program MutRec.program) ;
            print_endline "-----------------------------------" ;
-           run (eval_program move_program) ;
+           run (eval_program Move.program) ;
            print_endline "-----------------------------------" ;
-           run (eval_program coqcode_program) ;
+           run (eval_program CoqCode.program) ;
            ()
