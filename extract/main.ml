@@ -42,6 +42,7 @@ let handle_Event = fun e k -> match e with
   | UB -> failwith "UB OCCURED"
   (* | Syscall (['p'], [v]) -> print_val v ; k (Obj.magic ()) *)
   | Syscall ('p'::[], v::[]) -> print_val v ; k (Obj.magic ())
+  | Syscall ('g'::[], []) -> let x = read_int() in k (Obj.magic (Vnat x))
   | Syscall (cl, vs) -> print_endline (cl2s cl) ;
 (* print_val (List.nth vs 0) ; *)
 (* print_int (length cl) ; *)
@@ -66,4 +67,6 @@ let main =
            run (eval_program Move.program) ;
            print_endline "-----------------------------------" ;
            run (eval_program CoqCode.program) ;
+           print_endline "-----------------------------------" ;
+           run (eval_program Control.program) ;
            ()

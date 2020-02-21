@@ -61,6 +61,8 @@ Inductive expr : Type :=
 | Mult  (_ _ : expr)
 | Load (_: var) (_: expr)
 | CoqCode (_: list expr) (P: list val -> val)
+| Put (e: expr)
+| Get
 .
 
 (** The statements are straightforward. The [While] statement is the only
@@ -75,12 +77,11 @@ Inductive stmt : Type :=
 | Assume
 | Guarantee
 | Store (x: var) (ofs: expr) (e: expr) (* x->ofs := e *)
-| Put (e: expr)
 (* | Get (x: var) *)
 | Call (retv_name: var) (func_name: string) (params: list var)
 (* YJ: "Call" has nome collision *)
 (* YJ: I used "var" instead of "var + val". We should "update" retvs into variables. *)
-(* | Expr (e: expr) *)
+| Expr (e: expr)
 (* YJ: What kind of super power do we need?
 e.g. See if x has even number --> we need something like "MetaIf (var -> P: Prop)"
  *)
@@ -100,11 +101,11 @@ Definition program: Type := list (string * function).
 Module ImpNotations.
 
   (** A few notations for convenience.  *)
-  (* Definition Expr_coerce: expr -> stmt := Expr. *)
+  Definition Expr_coerce: expr -> stmt := Expr.
   Definition Var_coerce: string -> expr := Var.
   Definition Lit_coerce: val -> expr := Lit.
   Definition nat_coerce: nat -> val := Vnat.
-  (* Coercion Expr_coerce: expr >-> stmt. *)
+  Coercion Expr_coerce: expr >-> stmt.
   Coercion Var_coerce: string >-> expr.
   Coercion Lit_coerce: val >-> expr.
   Coercion nat_coerce: nat >-> val.
@@ -299,6 +300,9 @@ Section Denote.
          (* (if (P vs) *)
          (*      then Vtrue *)
          (*      else Vfalse) *)
+    | Put e => v <- denote_expr e ;;
+                 triggerSyscall "p" [v] ;; Ret (Vnodef)
+    | Get => triggerSyscall "g" []
     end.
 
   Inductive control: Type :=
@@ -402,8 +406,8 @@ Section Denote.
                            | _, _ => triggerNB
                            end ;;
                            ret (CNormal, Vnodef)
-    | Put e => v <- denote_expr e ;;
-                 triggerSyscall "p" [v] ;; Ret (CNormal, Vnodef)
+    (* | Put e => v <- denote_expr e ;; *)
+    (*              triggerSyscall "p" [v] ;; Ret (CNormal, Vnodef) *)
     (* | Get x => retv <- triggerSyscall (1) [];; trigger (SetVar x retv);; Ret tt *)
     | Call retv_name func_name arg_names =>
       args <- mapT (fun arg => trigger (GetVar arg)) arg_names;;
@@ -415,7 +419,7 @@ Section Denote.
              trigger (SetVar retv_name retv) ;;
              ret (CNormal, Vnodef)
       else triggerNB
-    (* | Expr e => denote_expr e *)
+    | Expr e => v <- denote_expr e ;; Ret (CNormal, v)
     | Return e => v <- denote_expr e ;; Ret (CReturn, v)
     | Break => Ret (CBreak, Vnodef)
     | Continue => Ret (CContinue, Vnodef)

@@ -220,6 +220,40 @@ End CoqCode.
 
 
 
+Module Control.
+
+  Definition f x: stmt :=
+    #while Vtrue
+     do (#put 0000 #;
+          (* 0 --> break *)
+          (* 1 --> continue *)
+          (* 2 --> return *)
+          (* 3 --> normal *)
+          x #:= Get #;
+          #if x then Skip else Break fi #;
+          #put 1000 #;
+          #if (x-1) then Skip else Continue fi #;
+          #put 2000 #;
+          #if (x-2) then Skip else (Return 567) fi #;
+          #put 3000 #;
+          Skip
+          )
+  .
+
+  Definition f_function: function := mk_function [] (f "local").
+
+  Definition main r: stmt :=
+    (Call r "f" []) #; #put r
+  .
+
+  Definition main_function: function :=
+    mk_function [] (main "local0")
+  .
+
+  Definition program: program := [("main", main_function) ;
+                                    ("f", f_function)].
+
+End Control.
 
 
 (* Definition cl2s (cl: string): string := cl. *)
