@@ -30,7 +30,7 @@ Local Open Scope monad_scope.
 Local Open Scope string_scope.
 Require Import sflib.
 
-Require Import ClassicalDescription.
+Require Import ClassicalDescription EquivDec.
 About excluded_middle_informative.
 
 Set Implicit Arguments.
@@ -45,6 +45,26 @@ Inductive val: Type :=
 (* | Vundef *)
 (* | Vnodef *)
 .
+
+(* Fixpoint val_dec (v1 v2: val): bool := *)
+(*   match v1, v2 with *)
+(*   | Vnat n1, Vnat n2 => Nat.eq_dec n1 n2 *)
+(*   | Vptr cts1, Vptr cts2 => list_eq_dec (val_dec) cts1 cts2 *)
+(*   | _, _ => false *)
+(*   end *)
+(* . *)
+
+(* Theorem val_induction *)
+
+Definition val_dec (v1 v2: val): {v1 = v2} + {v1 <> v2}.
+  revert v1 v2.
+  fix H 1.
+  intros.
+  decide equality.
+  - apply (Nat.eq_dec n n0).
+  - apply (list_eq_dec H contents contents0).
+Defined.
+
 Definition Vnull := Vptr [].
 (* YJ: is it really same with nodef? or we need explicit nodef? *)
 Definition Vnodef := Vnull.
@@ -59,10 +79,12 @@ Inductive expr : Type :=
 | Plus  (_ _ : expr)
 | Minus (_ _ : expr)
 | Mult  (_ _ : expr)
+| Equal (_ _: expr)
 | Load (_: var) (_: expr)
 | CoqCode (_: list expr) (P: list val -> val)
 | Put (e: expr)
 | Get
+| Call (func_name: string) (params: list expr)
 .
 
 (** The statements are straightforward. The [While] statement is the only
@@ -78,7 +100,9 @@ Inductive stmt : Type :=
 | Guarantee
 | Store (x: var) (ofs: expr) (e: expr) (* x->ofs := e *)
 (* | Get (x: var) *)
-| Call (retv_name: var) (func_name: string) (params: list var)
+
+(* | Call (retv_name: var) (func_name: string) (params: list var) *)
+
 (* YJ: "Call" has nome collision *)
 (* YJ: I used "var" instead of "var + val". We should "update" retvs into variables. *)
 | Expr (e: expr)
@@ -115,6 +139,7 @@ Module ImpNotations.
   Infix "+" := Plus : expr_scope.
   Infix "-" := Minus : expr_scope.
   Infix "*" := Mult : expr_scope.
+  Infix "==" := Equal : expr_scope.
   (* Notation "'NULL'" := (Vptr []) (at level 40): expr_scope. *)
 
   Bind Scope stmt_scope with stmt.
@@ -148,7 +173,7 @@ Module ImpNotations.
 
   Notation "a '#;' b" :=
     (Seq a b)
-      (at level 100, right associativity,
+      (at level 120, right associativity,
        format
          "'[v' a  '#;' '/' '[' b ']' ']'"
       ): stmt_scope.
@@ -216,7 +241,8 @@ Variant Event: Type -> Type :=
 
 (* YJ: Will be consumed internally *)
 Variant EventInternal: Type -> Type :=
-| CallInternal (func_name: string) (args: list val): EventInternal (val * list val)
+(* | CallInternal (func_name: string) (args: list val): EventInternal (val * list val) *)
+| CallInternal (func_name: string) (args: list val): EventInternal val
 (* ordinary return value, "updated" args *)
 .
 
@@ -285,6 +311,8 @@ Section Denote.
                      | Vnat l, Vnat r => ret (Vnat (l * r))
                      | _, _ => triggerNB
                      end
+    | Equal a b => l <- denote_expr a ;; r <- denote_expr b ;;
+                     Ret (if val_dec l r then Vtrue else Vfalse)
     | Load x ofs => x <- trigger (GetVar x) ;; ofs <- denote_expr ofs ;;
                       match x, ofs with
                       | Vptr cts, Vnat ofs =>
@@ -303,6 +331,9 @@ Section Denote.
     | Put e => v <- denote_expr e ;;
                  triggerSyscall "p" [v] ;; Ret (Vnodef)
     | Get => triggerSyscall "g" []
+    | Call func_name params =>
+      params <- mapT (fun param => denote_expr param) params;;
+      trigger (CallInternal func_name params)
     end.
 
   Inductive control: Type :=
@@ -409,16 +440,16 @@ Section Denote.
     (* | Put e => v <- denote_expr e ;; *)
     (*              triggerSyscall "p" [v] ;; Ret (CNormal, Vnodef) *)
     (* | Get x => retv <- triggerSyscall (1) [];; trigger (SetVar x retv);; Ret tt *)
-    | Call retv_name func_name arg_names =>
-      args <- mapT (fun arg => trigger (GetVar arg)) arg_names;;
-      '(retv, args_updated) <- trigger (CallInternal func_name args);;
-      if (length args_updated =? length arg_names)%nat
-      then
-        mapT (fun '(arg_name, arg_updated) => trigger (SetVar arg_name arg_updated))
-             (combine arg_names args_updated);;
-             trigger (SetVar retv_name retv) ;;
-             ret (CNormal, Vnodef)
-      else triggerNB
+    (* | Call retv_name func_name arg_names => *)
+    (*   args <- mapT (fun arg => trigger (GetVar arg)) arg_names;; *)
+    (*   '(retv, args_updated) <- trigger (CallInternal func_name args);; *)
+    (*   if (length args_updated =? length arg_names)%nat *)
+    (*   then *)
+    (*     mapT (fun '(arg_name, arg_updated) => trigger (SetVar arg_name arg_updated)) *)
+    (*          (combine arg_names args_updated);; *)
+    (*          trigger (SetVar retv_name retv) ;; *)
+    (*          ret (CNormal, Vnodef) *)
+    (*   else triggerNB *)
     | Expr e => v <- denote_expr e ;; Ret (CNormal, v)
     | Return e => v <- denote_expr e ;; Ret (CReturn, v)
     | Break => Ret (CBreak, Vnodef)
@@ -464,15 +495,14 @@ Section Denote.
          let f := (snd nf) in
          if (length f.(params) =? length args)%nat
          then
+           trigger PushEnv ;;
            let new_body := fold_left (fun s i => (fst i) #:= (Lit (snd i)) #; s)
                                      (* YJ: Why coercion does not work ?? *)
                                      (combine f.(params) args) f.(body) in
-           trigger PushEnv ;;
-           '(_, retv) <- denote_stmt new_body;;
+           '(_, retv) <- denote_stmt new_body ;;
            (* YJ: maybe we can check whether "control" is return (not break/continue) here *)
-           params_updated <- mapT (fun param => trigger (GetVar param)) (f.(params));;
            trigger PopEnv ;;
-           ret (retv, params_updated)
+           ret (retv)
          else triggerNB
   .
 
@@ -652,7 +682,7 @@ End TMP.
 (* Definition eval_imp (s: stmt) {E} : itree (void1 +' E) (env * unit) := *)
 (*   interp_Event (interp_imp (denote_imp s) empty). *)
 
-Definition eval_program (p: program): itree Event (env * (val * list val))
+Definition eval_program (p: program): itree Event (env * val)
   := interp_imp (denote_program p) [].
 
 (** Equipped with this evaluator, we can now compute.

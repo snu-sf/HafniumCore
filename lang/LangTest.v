@@ -91,7 +91,7 @@ Module Rec.
   Definition f x y r: stmt :=
     (#if x
       then (y #:= (x - 1) #;
-              (Call r "f" [y]) #;
+              r #:= (Call "f" [y: expr]) #;
               r #:= r + x)
       else (r #:= 0)
              fi)
@@ -103,7 +103,7 @@ Module Rec.
 
   Definition main x r: stmt :=
     x #:= 10 #;
-      (Call  r "f" [x]) #;
+      r #:= (Call "f" [x: expr]) #;
       #put r
   .
 
@@ -121,7 +121,7 @@ Module MutRec.
   Definition f x y r: stmt :=
     (#if x
       then (y #:= (x - 1) #;
-              (Call r "g" [y]) #;
+              r #:= (Call "g" [y: expr]) #;
               r #:= r + x)
       else (r #:= 0)
              fi)
@@ -132,7 +132,7 @@ Module MutRec.
   Definition g x y r: stmt :=
     (#if x
       then (y #:= (x - 1) #;
-              (Call r "f" [y]) #;
+              r #:= (Call "f" [y: expr]) #;
               r #:= r + x)
       else (r #:= 0)
              fi)
@@ -153,10 +153,10 @@ End MutRec.
 (* YJ: if we just use "r", not "unused", something weird will happen *)
 (* TODO: address it better *)
 Module Move.
-  Definition f x y accu unused: stmt :=
+  Definition f (x y accu unused: var): stmt :=
     (#if x
       then (y #:= (x - 1) #;
-              (Call unused "f" [y ; accu]) #;
+              unused #:= (Call "f" [y: expr ; accu: expr]) #;
               accu #:= accu + x #;
                                 Skip
            )
@@ -170,7 +170,7 @@ Module Move.
   Definition main x accu unused: stmt :=
     x #:= 10 #;
       accu #:= 1000 #;
-      (Call unused "f" [x ; accu]) #;
+      unused #:= (Call "f" [x: expr ; accu: expr]) #;
       #put accu
   .
 
@@ -200,9 +200,10 @@ Module CoqCode.
        end).
 
   (* Extract Constant excluded_middle_informative => "true". (* YJ: To avouid crash *) *)
-  Extract Constant coqcode => "fun _ -> print_endline ""Is Prop true?"" ;
-                                      if (read_int() = 0) then coq_Vtrue else coq_Vfalse
-                                      ".
+  (* Extract Constant coqcode => "fun _ -> print_endline ""Is Prop true?"" ; *)
+  (*                                     if (read_int() = 0) then coq_Vtrue else coq_Vfalse *)
+  (*                                     ". *)
+  Extract Constant coqcode => "fun _ -> coq_Vtrue".
 
   Definition main x: stmt :=
     x #:= 25 #;
@@ -222,28 +223,43 @@ End CoqCode.
 
 Module Control.
 
-  Definition f x: stmt :=
-    #while Vtrue
-     do (#put 0000 #;
+  Definition f ctrl ret iter: stmt :=
+    iter #:= 10 #;
+    ret #:= 0 #;
+    (* #put ctrl #; *)
+    (* #put iter #; *)
+    (* #put ret #; *)
+    (* #put 7777777 #; *)
+    #while iter
+     do (
+          iter #:= iter - 1#;
           (* 0 --> break *)
           (* 1 --> continue *)
           (* 2 --> return *)
           (* 3 --> normal *)
-          x #:= Get #;
-          #if x then Skip else Break fi #;
-          #put 1000 #;
-          #if (x-1) then Skip else Continue fi #;
-          #put 2000 #;
-          #if (x-2) then Skip else (Return 567) fi #;
-          #put 3000 #;
+          #if ctrl == 0 then Break else Skip fi #;
+          (* #put 1111 #; *)
+          ret #:= ret + 1 #;
+          #if ctrl == 1 then Continue else Skip fi #;
+          (* #put 2222 #; *)
+          ret #:= ret + 10 #;
+          #if ctrl == 2 then (Return (ret + 100)) else Skip fi #;
+          (* #put 3333 #; *)
+          ret #:= ret + 1000 #;
+
           Skip
-          )
+          ) #;
+     Return ret
   .
 
-  Definition f_function: function := mk_function [] (f "local").
+  Definition f_function: function := mk_function ["ctrl"] (f "ctrl" "local0" "local1").
 
   Definition main r: stmt :=
-    (Call r "f" []) #; #put r
+    r #:= (Call "f" [0: expr]) #; #if r == 0 then Skip else Assume fi #;
+    r #:= (Call "f" [1: expr]) #; #if r == 10 then Skip else Assume fi #;
+    r #:= (Call "f" [2: expr]) #; #if r == 111 then Skip else Assume fi #;
+    r #:= (Call "f" [3: expr]) #; #if r == 10110 then Skip else Assume fi #;
+    Skip
   .
 
   Definition main_function: function :=

@@ -11,7 +11,8 @@ all:
 	$(MAKE) extract
 
 extract: Makefile.coq $(COQTHEORIES) $(COQTHEORIES:.v=.vo)
-	cd extract; ocamlbuild -clean && ocamlbuild main.native
+	cd extract; ocamlbuild main.native
+#	cd extract; ocamlbuild -clean && ocamlbuild main.native
 
 graph:
 		sh make_graph.sh
