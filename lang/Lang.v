@@ -238,6 +238,7 @@ Variant Event: Type -> Type :=
     (name: string)
     (arg: list val): Event val
 | EYield: Event unit
+| ECall (name: string) (args: list val): Event val
 .
 
 (* YJ: Will be consumed internally *)
@@ -293,6 +294,8 @@ Section Denote.
       Usual monadic notations are used in the other cases: we can [bind]
       recursive computations in the case of operators as one would expect. *)
 
+  Variable ctx: program.
+
   Fixpoint denote_expr (e : expr) : itree eff val :=
     match e with
     | Var v     => trigger (GetVar v)
@@ -334,7 +337,10 @@ Section Denote.
     | Get => triggerSyscall "g" []
     | Call func_name params =>
       params <- mapT (fun param => denote_expr param) params;;
-      trigger (CallInternal func_name params)
+      match (find (fun '(n, _) => string_dec func_name n) ctx) with
+      | Some _ => trigger (CallInternal func_name params)
+      | None => trigger (ECall func_name params)
+      end
     end.
 
   Inductive control: Type :=
@@ -501,14 +507,14 @@ Section Denote.
            let new_body := fold_left (fun s i => (fst i) #:= (Lit (snd i)) #; s)
                                      (* YJ: Why coercion does not work ?? *)
                                      (combine f.(params) args) f.(body) in
-           '(_, retv) <- denote_stmt new_body ;;
+           '(_, retv) <- denote_stmt ctx new_body ;;
            (* YJ: maybe we can check whether "control" is return (not break/continue) here *)
            trigger PopEnv ;;
            ret (retv)
          else triggerNB
   .
 
-  Definition denote_program (p: program) :=
+  Definition denote_program (p: program): itree eff val :=
     (* mrec (denote_function3 p) (CallInternal "MAIN" []). *)
     let sem := mrec (denote_function p) in
     sem _ (CallInternal "main" []).
@@ -662,18 +668,21 @@ Definition interp_imp  {E A} (t : itree (ImpState +' E) A) :
 (*   let t' := interp (handle_Event) t in *)
 (*   t'. *)
 
-Section TMP.
-Variable s: stmt.
-Check (denote_stmt s): itree (ImpState +' Event +' EventInternal) (control * val).
-Check interp_imp (denote_stmt s):
-  stateT env (itree (ImpState +' Event +' EventInternal)) (control * val).
-Eval compute in (stateT env (itree (ImpState +' Event +' EventInternal))).
-Check interp_imp (denote_stmt s):
-  env ->
-  itree (ImpState +' Event +' EventInternal) (env * (control * val)).
-Check interp_imp (denote_stmt s) empty: itree (Event +' EventInternal)
-                                              (env * (control * val)).
-End TMP.
+
+(* Section TMP. *)
+(* Variable s: stmt. *)
+(* Check (denote_stmt s): itree (ImpState +' Event +' EventInternal) (control * val). *)
+(* Check interp_imp (denote_stmt s): *)
+(*   stateT env (itree (ImpState +' Event +' EventInternal)) (control * val). *)
+(* Eval compute in (stateT env (itree (ImpState +' Event +' EventInternal))). *)
+(* Check interp_imp (denote_stmt s): *)
+(*   env -> *)
+(*   itree (ImpState +' Event +' EventInternal) (env * (control * val)). *)
+(* Check interp_imp (denote_stmt s) empty: itree (Event +' EventInternal) *)
+(*                                               (env * (control * val)). *)
+(* End TMP. *)
+
+
 (* Check (@interp_Event _ _ (interp_imp (denote_imp s) empty)). *)
 (* Check (interp_Event2 (interp_imp (denote_imp s) empty)). *)
 
