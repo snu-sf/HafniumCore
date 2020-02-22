@@ -113,6 +113,7 @@ e.g. See if x has even number --> we need something like "MetaIf (var -> P: Prop
 | Return (e: expr)
 | Break
 | Continue
+| Yield
 .
 
 Inductive function: Type := mk_function { params: list var ; body: stmt }.
@@ -231,12 +232,12 @@ Variant ImpState : Type -> Type :=
 .
 
 Variant Event: Type -> Type :=
-| NB: Event void
-| UB: Event void
-| Syscall
+| ENB: Event void
+| EUB: Event void
+| ESyscall
     (name: string)
     (arg: list val): Event val
-| Yield: Event unit
+| EYield: Event unit
 .
 
 (* YJ: Will be consumed internally *)
@@ -247,13 +248,13 @@ Variant EventInternal: Type -> Type :=
 .
 
 Definition triggerUB {E A} `{Event -< E} : itree E A :=
-  vis UB (fun v => match v: void with end)
+  vis EUB (fun v => match v: void with end)
 .
 Definition triggerNB {E A} `{Event -< E} : itree E A :=
-  vis NB (fun v => match v: void with end)
+  vis ENB (fun v => match v: void with end)
 .
 Definition triggerSyscall {E} `{Event -< E} : string -> list val -> itree E val :=
-  embed Syscall
+  embed ESyscall
 .
 
 Definition unwrapN {E X} `{Event -< E} (x: option X): itree E X :=
@@ -454,6 +455,7 @@ Section Denote.
     | Return e => v <- denote_expr e ;; Ret (CReturn, v)
     | Break => Ret (CBreak, Vnodef)
     | Continue => Ret (CContinue, Vnodef)
+    | Yield => trigger EYield ;; Ret (CNormal, Vnodef)
     end.
 
 End Denote.

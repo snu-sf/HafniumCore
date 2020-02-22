@@ -41,16 +41,17 @@ let print_val = let rec go v =
 fun v -> go v ; print_endline " "
 
 let handle_Event = fun e k -> match e with
-  | NB -> failwith "NB OCCURED"
-  | UB -> failwith "UB OCCURED"
+  | ENB -> failwith "NB OCCURED"
+  | EUB -> failwith "UB OCCURED"
   (* | Syscall (['p'], [v]) -> print_val v ; k (Obj.magic ()) *)
-  | Syscall ('p'::[], v::[]) -> print_val v ; k (Obj.magic ())
-  | Syscall ('g'::[], []) -> let x = read_int() in k (Obj.magic (Vnat x))
-  | Syscall (cl, vs) -> print_endline (cl2s cl) ;
+  | ESyscall ('p'::[], v::[]) -> print_val v ; k (Obj.magic ())
+  | ESyscall ('g'::[], []) -> let x = read_int() in k (Obj.magic (Vnat x))
+  | ESyscall (cl, vs) -> print_endline (cl2s cl) ;
 (* print_val (List.nth vs 0) ; *)
 (* print_int (length cl) ; *)
 (* print_int (length vs) ; *)
                         failwith "UNSUPPORTED SYSCALL"
+  | EYield -> print_endline "yielding" ; k (Obj.magic ())
   | _ -> failwith "NO MATCH"
 
 let rec run t =
@@ -99,21 +100,35 @@ let rec run t =
  *   run_till_event_aux run_till_event q *)
 
 
+let rec my_rr q =
+  (my_rr_match (fun _ -> shuffle) (fun _ _ _ -> handle_Event)
+     (fun q -> match q with
+               | [] -> []
+               | _ :: _ -> my_rr q)) q
 
+(* let rec my_rr q =
+ *   let q = my_rr_once q in
+ *   let q = List.filter (fun i -> match observe i with RetF _ -> false | _ -> true) q in
+ *   match q with
+ *   | [] -> ()
+ *   | _ :: _ -> my_rr q *)
 
 let main =
-           print_endline "" ;
-           run (eval_program LoadStore.program) ;
-           print_endline "-----------------------------------" ;
-           run (eval_program Rec.program) ;
-           print_endline "-----------------------------------" ;
-           run (eval_program MutRec.program) ;
-           print_endline "-----------------------------------" ;
-           run (eval_program Move.program) ;
-           print_endline "-----------------------------------" ;
-           run (eval_program CoqCode.program) ;
-           print_endline "-----------------------------------" ;
-           run (eval_program Control.program) ;
-           print_endline "-----------------------------------" ;
-           run (round_robin (fun _ -> shuffle) (List.map eval_program Concur.programs)) ;
-           ()
+  Random.self_init();
+  print_endline "" ;
+  run (eval_program LoadStore.program) ;
+  print_endline "-----------------------------------" ;
+  run (eval_program Rec.program) ;
+  print_endline "-----------------------------------" ;
+  run (eval_program MutRec.program) ;
+  print_endline "-----------------------------------" ;
+  run (eval_program Move.program) ;
+  print_endline "-----------------------------------" ;
+  run (eval_program CoqCode.program) ;
+  print_endline "-----------------------------------" ;
+  run (eval_program Control.program) ;
+  print_endline "-----------------------------------" ;
+  run (round_robin (fun _ -> shuffle) (List.map eval_program Concur.programs)) ;
+  (* print_endline "-----------------------------------" ;
+   * my_rr (List.map eval_program Concur.programs) ; *)
+  ()

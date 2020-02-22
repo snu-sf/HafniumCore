@@ -42,7 +42,8 @@ Separate Extraction
          (* LangTest.cl2s *)
 
          LangTest.round_robin
-         LangTest.run_till_event
+         LangTest.run_till_yield
+         LangTest.my_rr_match
 
 (* ITreeDefinition.observe *)
 .

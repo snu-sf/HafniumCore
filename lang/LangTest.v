@@ -276,21 +276,25 @@ End Control.
 
 Module Concur.
 
-  Definition main: stmt :=
-    #put 1 #;
-    #put 2 #;
-    #put 3 #;
-    #put 4 #;
+  Definition main (n: nat): stmt :=
+    #put (n + 1) #;
+    #put (n + 2) #;
+    Yield #;
+    #put (n + 3) #;
+    #put (n + 4) #;
+    Yield #;
+    #put (n + 5) #;
+    #put (n + 6) #;
     Skip
   .
 
-  Definition main_function: function :=
-    mk_function [] (main)
+  Definition main_function n: function :=
+    mk_function [] (main n)
   .
 
-  Definition program: program := [("main", main_function) ].
+  Definition program n: program := [("main", main_function n) ].
 
-  Definition programs: list Lang.program := repeat program 3.
+  Definition programs: list Lang.program := [program 0 ; program 10; program 20].
 
 End Concur.
 
@@ -315,20 +319,30 @@ Variable shuffle: forall A, list A -> list A.
 (* CoFixpoint round_robin {E R} `{Event -< e} (q:list (itree E R)) : itree E R := *)
 (*   rr_match round_robin q. *)
 Definition rr_match {R}
-           (rr : list (itree Event R) -> itree Event R)
-           (q:list (itree Event R)) : itree Event R
+           (rr : list (itree Event R) -> itree Event unit)
+           (q:list (itree Event R)) : itree Event unit
   :=
     match q with
-    | [] => triggerUB
+    | [] => Ret tt
     | t::ts =>
       match observe t with
       | RetF _ => Tau (rr ts)
       | TauF u => Tau (rr (u :: ts))
-      | @VisF _ _ _ X o k => Vis o (fun x => rr (shuffle (k x :: ts)))
+      | @VisF _ _ _ X o k =>
+        match o with
+        | EYield => Vis o (fun x => rr (shuffle (k x :: ts)))
+        | _ => Vis o (fun x => rr (k x :: ts))
+        end
+        (* match o with *)
+        (* | Vis o (fun x => rr (shuffle (k x :: ts))) *)
+        (* (match o in Event Y return X = Y -> itree Event unit with *)
+        (* | EYield => fun pf => rr (k (eq_rect_r (fun T => T) tt pf) :: ts) *)
+        (* | _ => fun _ => Vis o (fun x => rr (k x :: ts)) *)
+        (* end) eq_refl *)
       end
     end.
 
-CoFixpoint round_robin {R} (q:list (itree Event R)) : itree Event R :=
+CoFixpoint round_robin {R} (q:list (itree Event R)) : itree Event unit :=
   rr_match round_robin q.
 
 
@@ -337,20 +351,31 @@ CoFixpoint round_robin {R} (q:list (itree Event R)) : itree Event R :=
 Variable handle_Event: forall E R X, Event X -> (X -> itree E R) -> itree E R.
 (* Extract Constant handle_Event => "handle_Event". *)
 
-Definition run_till_event_aux {R} (rr : itree Event R -> (itree Event R))
+Definition run_till_yield_aux {R} (rr : itree Event R -> (itree Event R))
            (q: itree Event R) : (itree Event R)
   :=
     match observe q with
     | RetF _ => q
     | TauF u => Tau (rr u)
       (* w <- (rr u) ;; (Tau w) *)
-    | @VisF _ _ _ X o k => (handle_Event o k)
+    | @VisF _ _ _ X o k =>
+      (match o in Event Y return X = Y -> itree Event R with
+       | EYield => fun pf => k (eq_rect_r (fun T => T) tt pf)
+       | _ => (* fun _ => Vis o (fun x => rr (k x)) *)
+         fun _ => Tau (rr (handle_Event o k))
+       end) eq_refl
+      (* match o with *)
+      (* | EYield => Vis o (fun x => rr (k x)) *)
+      (* | _ => Vis o (fun x => rr (k x)) *)
+      (* end *)
     (* Vis o (fun x => rr (shuffle (ts ++ [k x]))) *)
     end.
 
-CoFixpoint run_till_event {R} (q: itree Event R): (itree Event R) :=
-  run_till_event_aux run_till_event q
+CoFixpoint run_till_yield {R} (q: itree Event R): (itree Event R) :=
+  run_till_yield_aux run_till_yield q
 .
+
+Definition is_ret {E R} (q: itree E R): bool := match observe q with RetF _ => true | _ => false end.
 
 Definition my_rr_match {R} (rr : list (itree Event R) -> list (itree Event R))
            (q:list (itree Event R)) : list (itree Event R)
@@ -358,8 +383,8 @@ Definition my_rr_match {R} (rr : list (itree Event R) -> list (itree Event R))
     match q with
     | [] => []
     | t::ts =>
-      let t2 := run_till_event t in
-      rr (shuffle (t2::ts))
+      let t2 := run_till_yield t in
+      rr (shuffle (List.filter (negb <*> is_ret) (t2::ts)))
     end.
 
 Fail CoFixpoint my_round_robin {R} (q:list (itree Event R)) : list (itree Event R) :=
