@@ -272,64 +272,97 @@ Module Control.
 End Control.
 
 
-(* Definition cl2s (cl: string): string := cl. *)
-(* Definition load_store_applied := load_store "x" "sum". *)
-(* Check (eval_stmt load_store_applied). *)
-(* Definition print_val: unit := tt. *)
-(* Definition handle_Event: unit := tt. *)
-(* Definition main: unit := *)
-(*   let _ := print_val in *)
-(*   let _ := load_store_applied in *)
-(*   let _ := handle_Event in *)
-(*   tt. *)
-(* Extract Constant print_val => " *)
-(* let rec go v = *)
-(*   match v with *)
-(*   | Vnat n -> print_string ((string_of_int n) ^ "" "") *)
-(*   | Vptr cts -> print_string ""["" ; List.iter go cts ; print_string ""]"" in *)
-(* fun v -> go v ; print_endline "" "" *)
-(* " *)
-(* . *)
-
-(* Extract Constant cl2s => "fun cl -> String.concat """" (List.map (String.make 1) cl)". *)
-
-(* Extract Constant handle_Event => *)
-(* " *)
-(* fun e k -> match e with *)
-(*   | NB -> failwith ""NB OCCURED"" *)
-(*   | UB -> failwith ""UB OCCURED"" *)
-(*   (* | Syscall (['p'], [v]) -> print_val v ; k (Obj.magic ()) *) *)
-(*   | Syscall ('p'::[], v::[]) -> print_val v ; k (Obj.magic ()) *)
-(*   | Syscall (cl, vs) -> print_endline (cl2s cl) ; *)
-(* (* print_val (List.nth vs 0) ; *) *)
-(* (* print_int (length cl) ; *) *)
-(* (* print_int (length vs) ; *) *)
-(*                         failwith ""UNSUPPORTED SYSCALL"" *)
-(*   | _ -> failwith ""NO MATCH"" *)
-(* " *)
-(* . *)
-(* Extract Constant main => *)
-(* " *)
-(* let rec run t = *)
-(*   match observe t with *)
-(*   | RetF r -> r *)
-(*   | TauF t -> run t *)
-(*   | VisF (e, k) -> handle_Event e (fun x -> run (k x)) in *)
-(* run (eval_stmt load_store_applied) *)
-(* " *)
-(* . *)
 
 
+Module Concur.
+
+  Definition main: stmt :=
+    #put 1 #;
+    #put 2 #;
+    #put 3 #;
+    #put 4 #;
+    Skip
+  .
+
+  Definition main_function: function :=
+    mk_function [] (main)
+  .
+
+  Definition program: program := [("main", main_function) ].
+
+  Definition programs: list Lang.program := repeat program 3.
+
+End Concur.
+
+
+Section RUN.
+Variable shuffle: forall A, list A -> list A.
+
+(* Definition rr_match {E R} `{Event -< E} *)
+(*            (rr : list (itree E R) -> itree E R) *)
+(*            (q:list (itree E R)) : itree E R *)
+(*   := *)
+(*     match q with *)
+(*     | [] => triggerUB *)
+(*     | t::ts => *)
+(*       match observe t with *)
+(*       | RetF _ => Tau (rr ts) *)
+(*       | TauF u => Tau (rr (u :: ts)) *)
+(*       | @VisF _ _ _ X o k => Vis o (fun x => rr (shuffle (k x :: ts))) *)
+(*       end *)
+(*     end. *)
+
+(* CoFixpoint round_robin {E R} `{Event -< e} (q:list (itree E R)) : itree E R := *)
+(*   rr_match round_robin q. *)
+Definition rr_match {R}
+           (rr : list (itree Event R) -> itree Event R)
+           (q:list (itree Event R)) : itree Event R
+  :=
+    match q with
+    | [] => triggerUB
+    | t::ts =>
+      match observe t with
+      | RetF _ => Tau (rr ts)
+      | TauF u => Tau (rr (u :: ts))
+      | @VisF _ _ _ X o k => Vis o (fun x => rr (shuffle (k x :: ts)))
+      end
+    end.
+
+CoFixpoint round_robin {R} (q:list (itree Event R)) : itree Event R :=
+  rr_match round_robin q.
 
 
 
 
-(* Axiom dummy_client: forall A, A -> unit. *)
-(* Extract Constant dummy_client => "fun _ -> ()". *)
-(* Fixpoint val_iter (v: val) (f: nat -> unit): unit := *)
-(*   match v with *)
-(*   | Vnat n => dummy_client (f n) *)
-(*   | Vptr cts => List.fold_left (fun s i => dummy_client i) cts tt *)
-(*   end *)
-(* . *)
+Variable handle_Event: forall E R X, Event X -> (X -> itree E R) -> itree E R.
+(* Extract Constant handle_Event => "handle_Event". *)
 
+Definition run_till_event_aux {R} (rr : itree Event R -> (itree Event R))
+           (q: itree Event R) : (itree Event R)
+  :=
+    match observe q with
+    | RetF _ => q
+    | TauF u => Tau (rr u)
+      (* w <- (rr u) ;; (Tau w) *)
+    | @VisF _ _ _ X o k => (handle_Event o k)
+    (* Vis o (fun x => rr (shuffle (ts ++ [k x]))) *)
+    end.
+
+CoFixpoint run_till_event {R} (q: itree Event R): (itree Event R) :=
+  run_till_event_aux run_till_event q
+.
+
+Definition my_rr_match {R} (rr : list (itree Event R) -> list (itree Event R))
+           (q:list (itree Event R)) : list (itree Event R)
+  :=
+    match q with
+    | [] => []
+    | t::ts =>
+      let t2 := run_till_event t in
+      rr (shuffle (t2::ts))
+    end.
+
+Fail CoFixpoint my_round_robin {R} (q:list (itree Event R)) : list (itree Event R) :=
+  my_rr_match my_round_robin q.
+
+End RUN.

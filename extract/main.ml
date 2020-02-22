@@ -27,7 +27,10 @@ open Sum
 open Traversable
 open Sflib
 
-
+let shuffle: 'a list -> 'a list = fun xs ->
+  let xis = List.map (fun x -> (Random.bits (), x)) xs in
+  let yis = List.sort (fun x0 x1 -> Stdlib.compare (fst x0) (fst x1)) xis in
+  List.map snd yis
 
 let cl2s = fun cl -> String.concat "" (List.map (String.make 1) cl)
 
@@ -56,6 +59,48 @@ let rec run t =
   | TauF t -> run t
   | VisF (e, k) -> handle_Event e (fun x -> run (k x))
 
+
+
+
+
+
+
+
+
+(* let rr_match h rr = function
+ * | [] -> triggerUB h
+ * | t :: ts ->
+ *   (match observe t with
+ *    | RetF _ -> lazy (Coq_go (TauF (rr ts)))
+ *    | TauF u -> lazy (Coq_go (TauF (rr (u :: ts))))
+ *    | VisF (o, k) ->
+ *      lazy (Coq_go (VisF (o, (fun x -> rr (shuffle ((k x) :: ts)))))))
+ * 
+ * (\** val round_robin :
+ *     (__ coq_Event, 'a1) coq_IFun -> ('a1, 'a2) itree list -> ('a1, 'a2) itree **\)
+ * 
+ * let rec round_robin h q =
+ *   rr_match h (round_robin h) q
+ * 
+ * (\** val run_till_event_aux :
+ *     ((__ coq_Event, 'a1) itree -> (__ coq_Event, 'a1) itree) -> (__
+ *     coq_Event, 'a1) itree -> (__ coq_Event, 'a1) itree **\)
+ * 
+ * let run_till_event_aux rr q =
+ *   match observe q with
+ *   | RetF _ -> q
+ *   | TauF u -> lazy (Coq_go (TauF (rr u)))
+ *   | VisF (o, k) -> handle_Event o k
+ * 
+ * (\** val run_till_event :
+ *     (__ coq_Event, 'a1) itree -> (__ coq_Event, 'a1) itree **\)
+ * 
+ * let rec run_till_event q =
+ *   run_till_event_aux run_till_event q *)
+
+
+
+
 let main =
            print_endline "" ;
            run (eval_program LoadStore.program) ;
@@ -69,4 +114,6 @@ let main =
            run (eval_program CoqCode.program) ;
            print_endline "-----------------------------------" ;
            run (eval_program Control.program) ;
+           print_endline "-----------------------------------" ;
+           run (round_robin (fun _ -> shuffle) (List.map eval_program Concur.programs)) ;
            ()

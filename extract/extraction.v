@@ -35,10 +35,14 @@ Separate Extraction
          LangTest.Move.program
          LangTest.CoqCode.program
          LangTest.Control.program
+         LangTest.Concur.programs
          (* LangTest.print_val *)
          (* LangTest.main *)
          (* LangTest.handle_Event *)
          (* LangTest.cl2s *)
+
+         LangTest.round_robin
+         LangTest.run_till_event
 
 (* ITreeDefinition.observe *)
 .
