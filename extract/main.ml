@@ -40,7 +40,8 @@ let print_val = let rec go v =
   | Vptr cts -> print_string "[" ; List.iter go cts ; print_string "]" in
 fun v -> go v ; print_endline " "
 
-let handle_Event = fun e k -> match e with
+let handle_Event = fun e k ->
+  match e with
   | ENB -> failwith "NB OCCURED"
   | EUB -> failwith "UB OCCURED"
   (* | Syscall (['p'], [v]) -> print_val v ; k (Obj.magic ()) *)

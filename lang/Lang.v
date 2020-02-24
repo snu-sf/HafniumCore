@@ -238,14 +238,15 @@ Variant Event: Type -> Type :=
     (name: string)
     (arg: list val): Event val
 | EYield: Event unit
-| ECall (name: string) (args: list val): Event val
 .
 
 (* YJ: Will be consumed internally *)
-Variant EventInternal: Type -> Type :=
-(* | CallInternal (func_name: string) (args: list val): EventInternal (val * list val) *)
-| CallInternal (func_name: string) (args: list val): EventInternal val
-(* ordinary return value, "updated" args *)
+Variant CallInternalE: Type -> Type :=
+| CallInternal (func_name: string) (args: list val): CallInternalE val
+.
+
+Variant CallExternalE: Type -> Type :=
+| CallExternal (func_name: string) (args: list val): CallExternalE val
 .
 
 Definition triggerUB {E A} `{Event -< E} : itree E A :=
@@ -264,7 +265,7 @@ Definition unwrapN {E X} `{Event -< E} (x: option X): itree E X :=
   | None => triggerNB
   end.
 
-Definition unwarpU {E X} `{Event -< E} (x: option X): itree E X :=
+Definition unwrapU {E X} `{Event -< E} (x: option X): itree E X :=
   match x with
   | Some x => ret x
   | None => triggerUB
@@ -283,7 +284,8 @@ Section Denote.
   Context {eff : Type -> Type}.
   Context {HasImpState : ImpState -< eff}.
   Context {HasEvent : Event -< eff}.
-  Context {HasEventInternal : EventInternal -< eff}.
+  Context {HasCallInternalE: CallInternalE -< eff}.
+  Context {HasCallExternalE: CallExternalE -< eff}.
 
   (** _Imp_ expressions are denoted as [itree eff val], where the returned
       val in the tree is the val computed by the expression.
@@ -339,7 +341,7 @@ Section Denote.
       params <- mapT (fun param => denote_expr param) params;;
       match (find (fun '(n, _) => string_dec func_name n) ctx) with
       | Some _ => trigger (CallInternal func_name params)
-      | None => trigger (ECall func_name params)
+      | None => trigger (CallExternal func_name params)
       end
     end.
 
@@ -474,6 +476,7 @@ Section Denote.
   Context {eff : Type -> Type}.
   Context {HasImpState : ImpState -< eff}.
   Context {HasEvent : Event -< eff}.
+  Context {HasCallExternalE: CallExternalE -< eff}.
 
   (* Axiom tm: forall T, itree (EventInternal +' eff) T. *)
   (* Axiom tmp: itree (EventInternal +' eff) (val * list val). *)
@@ -496,7 +499,7 @@ Section Denote.
   (* Check (mapT (fun param => trigger (GetVar param)) params). *)
 
   Definition denote_function (ctx: program):
-    (EventInternal ~> itree (EventInternal +' eff)) :=
+    (CallInternalE ~> itree (CallInternalE +' eff)) :=
     fun T ei =>
       let '(CallInternal func_name args) := ei in
       nf <- unwrapN (find (fun nf => string_dec func_name (fst nf)) ctx) ;;
@@ -516,9 +519,13 @@ Section Denote.
 
   Definition denote_program (p: program): itree eff val :=
     (* mrec (denote_function3 p) (CallInternal "MAIN" []). *)
-    let sem := mrec (denote_function p) in
+    let sem: CallInternalE ~> itree eff := mrec (denote_function p) in
     sem _ (CallInternal "main" []).
   (* Better readability *)
+
+  Definition denote_program2 (p: program): CallInternalE ~> itree eff :=
+    mrec (denote_function p)
+  .
 
   (* Definition denote_program (p: program): *)
   (*   mrec-fix _ _ . *)
@@ -544,8 +551,8 @@ Section Example_Fact.
   (*   DO output ← output * input;;; *)
   (*      input  ← input - 1. *)
   Definition fact (n:nat): stmt :=
-    input #:= Vnat n#;
-    output #:= Vnat 1#;
+    input #:= n#;
+    output #:= 1#;
     #while input
     do output #:= output * input#;
        input  #:= input - Vnat 1.
@@ -693,8 +700,133 @@ Definition interp_imp  {E A} (t : itree (ImpState +' E) A) :
 (* Definition eval_imp (s: stmt) {E} : itree (void1 +' E) (env * unit) := *)
 (*   interp_Event (interp_imp (denote_imp s) empty). *)
 
-Definition eval_program (p: program): itree Event (env * val)
-  := interp_imp (denote_program p) [].
+Definition ignore_lF {A B R} (default: R) (rec: itree (A +' B) R -> itree B R)
+           (t : itreeF (A +' B) R _): itree B R  :=
+  match t with
+  | RetF x => Ret x
+  | TauF t => Tau (rec t)
+  | VisF e k => match e with
+                | inl1 a => Ret default
+                | inr1 b => Vis b (fun x => rec (k x))
+                end
+  end.
+
+Definition ignore_l {A B R} (default: R)
+  : itree (A +' B) R -> itree B R
+  := cofix ignore_l_ t := ignore_lF default ignore_l_ (observe t).
+
+Definition ignore_rF {A B R} (default: R) (rec: itree (A +' B) R -> itree A R)
+           (t : itreeF (A +' B) R _): itree A R  :=
+  match t with
+  | RetF x => Ret x
+  | TauF t => Tau (rec t)
+  | VisF e k => match e with
+                | inl1 a => Vis a (fun x => rec (k x))
+                | inr1 b => Ret default
+                end
+  end.
+
+Definition ignore_r {A B R} (default: R)
+  : itree (A +' B) R -> itree A R
+  := cofix ignore_r_ t := ignore_rF default ignore_r_ (observe t).
+
+Definition ignore_l_old A B (default: forall T, B T): itree (A +' B) ~> itree B :=
+  fun T itr => translate (fun T ab => match ab with | inl1 a => default T | inr1 b => b end) itr
+.
+Definition ignore_r_old A B (default: forall T, A T): itree (A +' B) ~> itree A :=
+  fun T itr => translate (fun T ab => match ab with | inl1 a => a | inr1 b => default T end) itr
+.
+
+(* Definition ignore_l A B T (default: T): itree (A +' B) T -> itree B T := *)
+(*   fun itr => interp (M:=itree B) *)
+(*                     (fun T ab => match ab with | inl1 a => (admit "") | inr1 b => admit "" end) *)
+(*                     itr *)
+(* . *)
+
+(* Definition eval_program (p: program): itree Event unit *)
+(*   := @ignore_l CallExternalE Event unit tt (ITree.ignore (interp_imp (denote_program p) [])). *)
+Definition eval_program (p: program): itree Event unit
+  := @ignore_l CallExternalE Event _ tt (ITree.ignore (interp_imp (denote_program p) [])).
+
+Section TMP.
+Variable tree: itree ((sum1 Event CallExternalE) +' Event) unit.
+Check (@ignore_l (sum1 Event CallExternalE) Event unit tt tree): itree Event unit.
+Check (ignore_l tt tree): itree Event unit.
+End TMP.
+
+
+(* Definition eval_program (p: program): itree Event unit *)
+(*   := @ignore_r Event CallExternalE unit tt (ITree.ignore (interp_imp (denote_program p) [])). *)
+
+(* Definition eval_program (p: program): itree Event (list (alist var val) * val) *)
+(*   := ignore_l ([], Vnodef) (interp_imp (denote_program p) []). *)
+(* Definition eval_program (p: program): itree (CallExternalE +' Event) unit *)
+(*   := (ITree.ignore (interp_imp (denote_program p) [])). *)
+Print Instances Iter.
+Print Instances MonadIter.
+
+Inductive ModSem: Type :=
+  mk_ModSem { genv: string -> bool ; sem: CallExternalE ~> itree (CallExternalE +' Event) }.
+
+(* Definition internal_to_external (c: CallInternalE val): CallExternalE val := *)
+(*   let '(CallInternal func_name args) := c in CallExternal (func_name) (args) *)
+(* . *)
+
+(* Definition external_to_internal (c: CallExternalE val): CallInternalE val := *)
+(*   let '(CallExternal func_name args) := c in CallInternal (func_name) (args) *)
+(* . *)
+
+Definition external_to_internal: CallExternalE ~> CallInternalE :=
+  fun T c => let '(CallExternal func_name args) := c in CallInternal (func_name) (args)
+.
+
+(* Coercion external_to_internal: CallExternalE >-> CallInternalE. *)
+
+Definition eval_program2 (p: program): ModSem
+  := mk_ModSem 
+         (fun func_name => List.in_dec Strings.String.string_dec func_name (List.map fst p))
+         (fun T (call: CallExternalE T) =>
+            ITree.map snd (interp_imp (denote_program2 p (external_to_internal call)) []))
+.
+
+Section TMP.
+Variable modsems: list ModSem.
+Check (fun c =>
+          let '(CallExternal func_name args) := c in
+          modsem <- unwrapU (List.find (fun modsem => modsem.(genv) func_name) modsems) ;;
+                 modsem.(sem) c): CallExternalE val -> itree (CallExternalE +' Event) val.
+(* Set Printing All. *)
+Check (fun T (c: CallExternalE T) =>
+          let '(CallExternal func_name args) := c in
+          modsem <- @unwrapU (CallExternalE +' Event) _ _
+                 (List.find (fun modsem => modsem.(genv) func_name) modsems) ;;
+                 modsem.(sem) c)
+  (* : CallExternalE ~> itree (CallExternalE +' Event) *)
+  : forall T, CallExternalE T -> itree (CallExternalE +' Event) T
+.
+
+Check (fun T (c: CallExternalE T) =>
+          let '(CallExternal func_name args) := c in
+          match (List.find (fun modsem => modsem.(genv) func_name) modsems) with
+          | Some modsem => modsem.(sem) c
+          | None => triggerUB
+          end)
+  (* : CallExternalE ~> itree (CallExternalE +' Event) *)
+  : forall T, CallExternalE T -> itree (CallExternalE +' Event) T
+.
+End TMP.
+
+Definition eval_multimodule (modsems: list ModSem): itree Event val
+  :=
+  let sem: CallExternalE ~> itree Event :=
+      mrec (fun T (c: CallExternalE T) =>
+              let '(CallExternal func_name args) := c in
+              modsem <- @unwrapU (CallExternalE +' Event) _ _
+                     (List.find (fun modsem => modsem.(genv) func_name) modsems) ;; modsem.(sem) c)
+  in
+  sem _ (CallExternal "main" [])
+.
+
 
 (** Equipped with this evaluator, we can now compute.
     Naturally since Coq is total, we cannot do it directly inside of it.
