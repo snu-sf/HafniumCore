@@ -700,20 +700,20 @@ Definition interp_imp  {E A} (t : itree (ImpState +' E) A) :
 (* Definition eval_imp (s: stmt) {E} : itree (void1 +' E) (env * unit) := *)
 (*   interp_Event (interp_imp (denote_imp s) empty). *)
 
-Definition ignore_lF {A B R} (default: R) (rec: itree (A +' B) R -> itree B R)
+Definition ignore_lF {A B R} (rec: itree (A +' B) R -> itree B R)
            (t : itreeF (A +' B) R _): itree B R  :=
   match t with
   | RetF x => Ret x
   | TauF t => Tau (rec t)
   | VisF e k => match e with
-                | inl1 a => Ret default
+                | inl1 a => ITree.spin
                 | inr1 b => Vis b (fun x => rec (k x))
                 end
   end.
 
-Definition ignore_l {A B R} (default: R)
+Definition ignore_l {A B R}
   : itree (A +' B) R -> itree B R
-  := cofix ignore_l_ t := ignore_lF default ignore_l_ (observe t).
+  := cofix ignore_l_ t := ignore_lF ignore_l_ (observe t).
 
 Definition ignore_rF {A B R} (default: R) (rec: itree (A +' B) R -> itree A R)
            (t : itreeF (A +' B) R _): itree A R  :=
@@ -730,9 +730,6 @@ Definition ignore_r {A B R} (default: R)
   : itree (A +' B) R -> itree A R
   := cofix ignore_r_ t := ignore_rF default ignore_r_ (observe t).
 
-Definition ignore_l_old A B (default: forall T, B T): itree (A +' B) ~> itree B :=
-  fun T itr => translate (fun T ab => match ab with | inl1 a => default T | inr1 b => b end) itr
-.
 Definition ignore_r_old A B (default: forall T, A T): itree (A +' B) ~> itree A :=
   fun T itr => translate (fun T ab => match ab with | inl1 a => a | inr1 b => default T end) itr
 .
@@ -746,12 +743,12 @@ Definition ignore_r_old A B (default: forall T, A T): itree (A +' B) ~> itree A 
 (* Definition eval_program (p: program): itree Event unit *)
 (*   := @ignore_l CallExternalE Event unit tt (ITree.ignore (interp_imp (denote_program p) [])). *)
 Definition eval_program (p: program): itree Event unit
-  := @ignore_l CallExternalE Event _ tt (ITree.ignore (interp_imp (denote_program p) [])).
+  := @ignore_l CallExternalE Event _ (ITree.ignore (interp_imp (denote_program p) [])).
 
 Section TMP.
 Variable tree: itree ((sum1 Event CallExternalE) +' Event) unit.
-Check (@ignore_l (sum1 Event CallExternalE) Event unit tt tree): itree Event unit.
-Check (ignore_l tt tree): itree Event unit.
+Check (@ignore_l (sum1 Event CallExternalE) Event unit tree): itree Event unit.
+Check (ignore_l tree): itree Event unit.
 End TMP.
 
 
