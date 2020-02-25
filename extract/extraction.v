@@ -35,7 +35,9 @@ Separate Extraction
          LangTest.Move.program
          LangTest.CoqCode.program
          LangTest.Control.program
-         LangTest.Concur.programs
+         LangTest.MultiCore.programs
+         LangTest.MultiModule.isem
+         LangTest.MultiModuleLocalState.isem
          (* LangTest.print_val *)
          (* LangTest.main *)
          (* LangTest.handle_Event *)

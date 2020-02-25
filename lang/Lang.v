@@ -233,8 +233,8 @@ Variant ImpState : Type -> Type :=
 .
 
 Variant Event: Type -> Type :=
-| ENB: Event void
-| EUB: Event void
+| ENB (msg: string): Event void
+| EUB (msg: string): Event void
 | ESyscall
     (name: string)
     (arg: list val): Event val
@@ -250,11 +250,11 @@ Variant CallExternalE: Type -> Type :=
 | CallExternal (func_name: string) (args: list val): CallExternalE val
 .
 
-Definition triggerUB {E A} `{Event -< E} : itree E A :=
-  vis EUB (fun v => match v: void with end)
+Definition triggerUB {E A} `{Event -< E} (msg: string): itree E A :=
+  vis (EUB msg) (fun v => match v: void with end)
 .
-Definition triggerNB {E A} `{Event -< E} : itree E A :=
-  vis ENB (fun v => match v: void with end)
+Definition triggerNB {E A} `{Event -< E} (msg: string) : itree E A :=
+  vis (ENB msg) (fun v => match v: void with end)
 .
 Definition triggerSyscall {E} `{Event -< E} : string -> list val -> itree E val :=
   embed ESyscall
@@ -263,13 +263,13 @@ Definition triggerSyscall {E} `{Event -< E} : string -> list val -> itree E val 
 Definition unwrapN {E X} `{Event -< E} (x: option X): itree E X :=
   match x with
   | Some x => ret x
-  | None => triggerNB
+  | None => triggerNB "unwrap"
   end.
 
 Definition unwrapU {E X} `{Event -< E} (x: option X): itree E X :=
   match x with
   | Some x => ret x
-  | None => triggerUB
+  | None => triggerUB "unwrap"
   end.
 
 Section Denote.
@@ -306,17 +306,17 @@ Section Denote.
     | Plus a b  => l <- denote_expr a ;; r <- denote_expr b ;;
                      match l, r with
                      | Vnat l, Vnat r => ret (Vnat (l + r))
-                     | _, _ => triggerNB
+                     | _, _ => triggerNB "expr-plus"
                      end
     | Minus a b => l <- denote_expr a ;; r <- denote_expr b ;;
                      match l, r with
                      | Vnat l, Vnat r => ret (Vnat (l - r))
-                     | _, _ => triggerNB
+                     | _, _ => triggerNB "expr-minus"
                      end
     | Mult a b  => l <- denote_expr a ;; r <- denote_expr b ;;
                      match l, r with
                      | Vnat l, Vnat r => ret (Vnat (l * r))
-                     | _, _ => triggerNB
+                     | _, _ => triggerNB "expr-mult"
                      end
     | Equal a b => l <- denote_expr a ;; r <- denote_expr b ;;
                      Ret (if val_dec l r then Vtrue else Vfalse)
@@ -325,9 +325,9 @@ Section Denote.
                       | Vptr cts, Vnat ofs =>
                         match nth_error cts ofs with
                         | Some v => ret v
-                        | _ => triggerNB
+                        | _ => triggerNB "expr-load1"
                         end
-                      | _, _ => triggerNB
+                      | _, _ => triggerNB "expr-load2"
                       end
     | CoqCode es P =>
       vs <- mapT (denote_expr) es ;;
@@ -435,8 +435,8 @@ Section Denote.
                       end
                 else ret (inr (CNormal, Vnodef (* YJ: this is temporary *)))))
     | Skip => ret (CNormal, Vnodef)
-    | Assume => triggerUB
-    | Guarantee => triggerNB
+    | Assume => triggerUB "stmt-assume"
+    | Guarantee => triggerNB "stmt-grnt"
     (* | _ => triggerUB *)
     | Store x ofs e => ofs <- denote_expr ofs ;; e <- denote_expr e ;;
                            v <- trigger (GetVar x) ;;
@@ -444,7 +444,7 @@ Section Denote.
                            | Vnat ofs, Vptr cts0 =>
                              cts1 <- (unwrapN (update_err cts0 ofs e)) ;;
                                   trigger (SetVar x (Vptr cts1))
-                           | _, _ => triggerNB
+                           | _, _ => triggerNB "stmt-store"
                            end ;;
                            ret (CNormal, Vnodef)
     (* | Put e => v <- denote_expr e ;; *)
@@ -515,7 +515,7 @@ Section Denote.
            (* YJ: maybe we can check whether "control" is return (not break/continue) here *)
            trigger PopEnv ;;
            ret (retv)
-         else triggerNB
+         else triggerNB "denote_function"
   .
 
   Definition denote_program (p: program): itree eff val :=
@@ -776,7 +776,7 @@ Inductive ModSem: Type :=
               owned_heap: Type;
               initial_owned_heap: owned_heap;
               customE: Type -> Type ;
-              handler: forall E, customE ~> stateT owned_heap (itree E);
+              handler: customE ~> stateT owned_heap (itree Event);
 
 
               (* handler: forall E, AnyState ~> stateT Any (itree E); *)
@@ -784,6 +784,8 @@ Inductive ModSem: Type :=
 
               sem: CallExternalE ~> itree (CallExternalE +' Event +' customE);
             }.
+
+Arguments mk_ModSem _ {owned_heap}.
 
 
 
@@ -928,7 +930,7 @@ Definition eval_multimodule_aux (mss: list ModSem):
                                inr1 (inr1 tmp)
                              end) t
                 (* ITree.spin *)
-              | _ => triggerUB
+              | _ => triggerUB "eval_multimodule_aux"
               end)
               (* match (List.find (fun ms => ms.(genv) func_name) mss) as H with *)
               (* | Some ms => *)
@@ -1000,11 +1002,11 @@ Definition HANDLE: forall mss,
   - eapply a.(handler) in c.
     ii. ss.
     destruct X. ss.
-    { eapply triggerUB. }
+    { eapply (triggerUB "HANDLE1"). }
     rename a0 into hd. rename X into tl.
     eapply try_type with (T:= owned_heap a) in hd.
     destruct hd; cycle 1.
-    { apply triggerUB. }
+    { apply (triggerUB "HANDLE2"). }
     eapply c in o. eapply ITree.map; try eapply o.
     intro. destruct X. econs.
     { eapply cons.
@@ -1028,7 +1030,7 @@ Definition HANDLE2: forall mss,
     rename a0 into hd. rename l into tl.
     eapply try_type with (T:= owned_heap a) in hd.
     destruct hd; cycle 1.
-    { apply triggerUB. }
+    { apply (triggerUB "HANDLE2A"). }
     eapply c in o. eapply ITree.map; try eapply o.
     intro. destruct X. econs.
     { unshelve econs.
@@ -1065,6 +1067,24 @@ Definition INITIAL2 (mss: list ModSem): hvec (length mss).
   - ss. inv IHmss. econs. instantiate (1:=(existT id _ a.(initial_owned_heap))::l). ss.
     eauto.
 Defined.
+
+Inductive unit1: Type -> Type :=
+.
+
+Definition program_to_ModSem (p: program): ModSem :=
+  mk_ModSem
+    (fun s => in_dec Strings.String.string_dec s (List.map fst p))
+    tt
+    void1
+    (fun T e _ => ITree.map (fun t => (tt, t)) (Handler.empty _ e))
+    (* ImpState *)
+    (* (fun _ _ _ => (triggerUB "program_to_ModSem")) *)
+    (fun T (c: CallExternalE T) =>
+       let '(CallExternal func_name args) := c in
+       ITree.map snd (interp_imp ((denote_program2 p) _ (CallInternal func_name args)) [])
+       (* (denote_program2 p) _ (CallInternal func_name args) *)
+    )
+.
 
 Definition eval_multimodule (mss: list ModSem): itree Event unit :=
   let t := eval_multimodule_aux mss in

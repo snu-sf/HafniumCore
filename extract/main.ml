@@ -42,8 +42,8 @@ fun v -> go v ; print_endline " "
 
 let handle_Event = fun e k ->
   match e with
-  | ENB -> failwith "NB OCCURED"
-  | EUB -> failwith "UB OCCURED"
+  | ENB msg -> failwith ("NB:" ^ (cl2s msg))
+  | EUB msg -> failwith ("UB:" ^ (cl2s msg))
   (* | Syscall (['p'], [v]) -> print_val v ; k (Obj.magic ()) *)
   | ESyscall ('p'::[], v::[]) -> print_val v ; k (Obj.magic ())
   | ESyscall ('g'::[], []) -> let x = read_int() in k (Obj.magic (Vnat x))
@@ -129,7 +129,11 @@ let main =
   print_endline "-----------------------------------" ;
   run (eval_program Control.program) ;
   print_endline "-----------------------------------" ;
-  run (round_robin (fun _ -> shuffle) (List.map eval_program Concur.programs)) ;
+  run (round_robin (fun _ -> shuffle) (List.map eval_program MultiCore.programs)) ;
+  print_endline "-----------------------------------" ;
+  run (MultiModule.isem) ;
+  print_endline "-----------------------------------" ;
+  run (MultiModuleLocalState.isem) ;
   (* print_endline "-----------------------------------" ;
    * my_rr (List.map eval_program Concur.programs) ; *)
   ()

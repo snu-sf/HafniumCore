@@ -274,7 +274,7 @@ End Control.
 
 
 
-Module Concur.
+Module MultiCore.
 
   Definition main (n: nat): stmt :=
     #put (n + 1) #;
@@ -296,7 +296,157 @@ Module Concur.
 
   Definition programs: list Lang.program := [program 0 ; program 10; program 20].
 
-End Concur.
+End MultiCore.
+
+
+
+
+Module MultiModule.
+
+  Definition f x y r: stmt :=
+    (#if x
+      then (y #:= (x - 1) #;
+              r #:= (Call "g" [y: expr]) #;
+              r #:= r + x)
+      else (r #:= 0)
+             fi)
+      #;
+      Return r
+  .
+
+  Definition g x y r: stmt :=
+    (#if x
+      then (y #:= (x - 1) #;
+              r #:= (Call "f" [y: expr]) #;
+              r #:= r + x)
+      else (r #:= 0)
+             fi)
+      #;
+      Return r
+  .
+
+  Definition f_function: function := mk_function ["x"] (f "x" "local0" "local1").
+  Definition g_function: function := mk_function ["x"] (g "x" "local0" "local1").
+
+  Definition main_program: program := [("main", Rec.main_function)].
+  Definition f_program: program := [("f", f_function)].
+  Definition g_program: program := [("g", g_function)].
+
+  Definition modsems: list ModSem :=
+    List.map program_to_ModSem [main_program ; f_program ; g_program].
+
+  Definition isem: itree Event unit := eval_multimodule modsems.
+
+End MultiModule.
+
+
+
+Module MultiModuleLocalState.
+
+  Inductive memoizeE: Type -> Type :=
+  | GetM (k: nat): memoizeE (option nat)
+  | SetM (k: nat) (v: nat): memoizeE unit
+  .
+  Definition f_sem: CallExternalE ~> itree (CallExternalE +' Event +' memoizeE) :=
+    (fun T (c: CallExternalE T) =>
+       let '(CallExternal func_name args) := c in
+       match args with
+       | [Vnat k] =>
+         v <- trigger (GetM k) ;;
+           match v with
+           | Some v => triggerSyscall "p" [Vnat 22222] ;; Ret (Vnat v)
+           | None => triggerSyscall "p" [Vnat 11111] ;;
+             match k with
+             | O => Ret (Vnat O)
+             | _ => prev <- trigger (CallExternal "g" [Vnat (Nat.pred k)]);;
+                         match prev with
+                         | Vnat prev =>
+                           let v := (prev + k)%nat in
+                           trigger (SetM k v) ;; Ret (Vnat v)
+                         | _ => triggerUB "memoizing_f"
+                         end
+             end
+           end
+       | _ => triggerUB "memoizing_f"
+       end
+    )
+  .
+  Definition f_owned_heap: Type := nat -> option nat.
+  Definition update (oh: f_owned_heap) (k v: nat): f_owned_heap :=
+    fun x =>
+      if Nat.eq_dec x k
+      then Some v
+      else oh x
+  .
+  Definition f_handler: memoizeE ~> stateT f_owned_heap (itree Event) :=
+    fun T e oh =>
+      match e with
+      | GetM k => Ret (oh, oh k)
+      | SetM k v => Ret (update oh k v, tt)
+      end
+  .
+  Definition f_ModSem: ModSem :=
+    mk_ModSem
+      (fun s => string_dec s "f")
+      (fun (_: nat) => None: option nat)
+      memoizeE
+      f_handler
+      f_sem
+  .
+
+  Definition g x y r: stmt :=
+    (#if x
+      then (y #:= (x - 1) #;
+              r #:= (Call "f" [y: expr]) #;
+              r #:= r + x)
+      else (r #:= 0)
+             fi)
+      #;
+      Return r
+  .
+  Definition g_function: function := mk_function ["x"] (g "x" "local0" "local1").
+  Definition g_program: program := [("g", g_function)].
+
+  Definition main r: stmt :=
+      r #:= (Call "f" [10: expr]) #;
+      #put r #;
+
+      #put 99999 #;
+      #put 99999 #;
+      #put 99999 #;
+
+      r #:= (Call "f" [10: expr]) #;
+      #put r #;
+
+      #put 99999 #;
+      #put 99999 #;
+      #put 99999 #;
+
+      r #:= (Call "f" [5: expr]) #;
+      #put r #;
+
+      #put 99999 #;
+      #put 99999 #;
+      #put 99999 #;
+
+      r #:= (Call "f" [8: expr]) #;
+      #put r #;
+
+      Skip
+  .
+  Definition main_function: function := mk_function [] (main "local0").
+  Definition main_program: program := [("main", main_function)].
+
+  Definition modsems: list ModSem :=
+    [f_ModSem] ++ List.map program_to_ModSem [main_program ; g_program].
+
+  Definition isem: itree Event unit := eval_multimodule modsems.
+
+End MultiModuleLocalState.
+
+
+
+
 
 
 Section RUN.
