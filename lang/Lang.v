@@ -28,6 +28,7 @@ Import Monads.
 Import MonadNotation.
 Local Open Scope monad_scope.
 Local Open Scope string_scope.
+Require Import Any.
 Require Import sflib.
 
 Require Import ClassicalDescription EquivDec.
@@ -762,8 +763,27 @@ End TMP.
 Print Instances Iter.
 Print Instances MonadIter.
 
+Section TMP.
+  (* Context {owned_heap: Type}. *)
+  Variable (owned_heap: Type).
+  Variant OHState: Type -> Type :=
+  | GetOH: OHState owned_heap
+  | SetOH(oh: owned_heap): OHState unit
+  .
+End TMP.
+Arguments GetOH {owned_heap}.
+Arguments SetOH {owned_heap}.
+
+(* Inductive customE: Type := mk_customE { owned_heap: Type; *)
+(*                                         handler: forall T {E: Type -> Type}, *)
+(*                                             (OHState owned_heap) T -> itree E (owned_heap * T) }. *)
 Inductive ModSem: Type :=
-  mk_ModSem { genv: string -> bool ; sem: CallExternalE ~> itree (CallExternalE +' Event) }.
+  mk_ModSem { genv: string -> bool ;
+              owned_heap: Type;
+              initial_owned_heap: owned_heap;
+              (* customE: Type -> Type ; *)
+              handler: forall E, (OHState owned_heap) ~> stateT owned_heap (itree E);
+              sem: CallExternalE ~> itree (CallExternalE +' Event +' (OHState owned_heap)) }.
 
 (* Definition internal_to_external (c: CallInternalE val): CallExternalE val := *)
 (*   let '(CallInternal func_name args) := c in CallExternal (func_name) (args) *)
@@ -781,37 +801,41 @@ Definition external_to_internal: CallExternalE ~> CallInternalE :=
 
 Definition eval_program2 (p: program): ModSem
   := mk_ModSem 
-         (fun func_name => List.in_dec Strings.String.string_dec func_name (List.map fst p))
-         (fun T (call: CallExternalE T) =>
-            ITree.map snd (interp_imp (denote_program2 p (external_to_internal call)) []))
+       (fun func_name => List.in_dec Strings.String.string_dec func_name (List.map fst p))
+       tt (* YJ: I want to use void1, but "initial_owned_heap" prevents me from doing that.
+TODO: see if it is possible: don't require "initial_owned_heap", instead require "(handler initial_owned_heap)".
+           *)
+       (fun _ _ e _ => match e with | GetOH => Ret (tt, tt) | SetOH _ => Ret (tt, tt) end)
+       (fun T (call: CallExternalE T) =>
+          ITree.map snd (interp_imp (denote_program2 p (external_to_internal call)) []))
 .
 
-Section TMP.
-Variable modsems: list ModSem.
-Check (fun c =>
-          let '(CallExternal func_name args) := c in
-          modsem <- unwrapU (List.find (fun modsem => modsem.(genv) func_name) modsems) ;;
-                 modsem.(sem) c): CallExternalE val -> itree (CallExternalE +' Event) val.
-(* Set Printing All. *)
-Check (fun T (c: CallExternalE T) =>
-          let '(CallExternal func_name args) := c in
-          modsem <- @unwrapU (CallExternalE +' Event) _ _
-                 (List.find (fun modsem => modsem.(genv) func_name) modsems) ;;
-                 modsem.(sem) c)
-  (* : CallExternalE ~> itree (CallExternalE +' Event) *)
-  : forall T, CallExternalE T -> itree (CallExternalE +' Event) T
-.
+(* Section TMP. *)
+(* Variable modsems: list ModSem. *)
+(* Check (fun c => *)
+(*           let '(CallExternal func_name args) := c in *)
+(*           modsem <- unwrapU (List.find (fun modsem => modsem.(genv) func_name) modsems) ;; *)
+(*                  modsem.(sem) c): CallExternalE val -> itree (CallExternalE +' Event) val. *)
+(* (* Set Printing All. *) *)
+(* Check (fun T (c: CallExternalE T) => *)
+(*           let '(CallExternal func_name args) := c in *)
+(*           modsem <- @unwrapU (CallExternalE +' Event) _ _ *)
+(*                  (List.find (fun modsem => modsem.(genv) func_name) modsems) ;; *)
+(*                  modsem.(sem) c) *)
+(*   (* : CallExternalE ~> itree (CallExternalE +' Event) *) *)
+(*   : forall T, CallExternalE T -> itree (CallExternalE +' Event) T *)
+(* . *)
 
-Check (fun T (c: CallExternalE T) =>
-          let '(CallExternal func_name args) := c in
-          match (List.find (fun modsem => modsem.(genv) func_name) modsems) with
-          | Some modsem => modsem.(sem) c
-          | None => triggerUB
-          end)
-  (* : CallExternalE ~> itree (CallExternalE +' Event) *)
-  : forall T, CallExternalE T -> itree (CallExternalE +' Event) T
-.
-End TMP.
+(* Check (fun T (c: CallExternalE T) => *)
+(*           let '(CallExternal func_name args) := c in *)
+(*           match (List.find (fun modsem => modsem.(genv) func_name) modsems) with *)
+(*           | Some modsem => modsem.(sem) c *)
+(*           | None => triggerUB *)
+(*           end) *)
+(*   (* : CallExternalE ~> itree (CallExternalE +' Event) *) *)
+(*   : forall T, CallExternalE T -> itree (CallExternalE +' Event) T *)
+(* . *)
+(* End TMP. *)
 
 Definition eval_multimodule (modsems: list ModSem): itree Event val
   :=
