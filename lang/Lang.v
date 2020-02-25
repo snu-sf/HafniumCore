@@ -775,12 +775,14 @@ Inductive ModSem: Type :=
   mk_ModSem { genv: string -> bool ;
               owned_heap: Type;
               initial_owned_heap: owned_heap;
-              (* customE: Type -> Type ; *)
+              customE: Type -> Type ;
+              handler: forall E, customE ~> stateT owned_heap (itree E);
+
 
               (* handler: forall E, AnyState ~> stateT Any (itree E); *)
               (* sem: CallExternalE ~> itree (CallExternalE +' Event); *)
 
-              sem: CallExternalE ~> stateT owned_heap (itree (CallExternalE +' Event));
+              sem: CallExternalE ~> itree (CallExternalE +' Event +' customE);
             }.
 
 
@@ -820,18 +822,255 @@ End INJECT.
 (*   itree (CallExternalE +' Event +' AnyState) R. *)
 (* Definition inject_AnyState R (i: itree (CallExternalE +' Event +' AnyState) R): *)
 (*   itree (CallExternalE +' Event +' AnyState) R. *)
-Definition eval_multimodule (mss: list ModSem): itree (Event +' AnyState) val
+Fixpoint sum_all1 (Es: list (Type -> Type)): Type -> Type :=
+  match Es with
+  | [] => void1
+  | hd :: tl => hd +' sum_all1 tl
+  end
+.
+Print Instances Embeddable.
+Print Instances ReSum.
+
+Section TMP.
+  Variable (A B: Type -> Type).
+  Variable R: Type.
+  Context `{A -< B}.
+  Context `{forall T, Embeddable (A T) (B T)}.
+  Variable e: itree A R.
+  Goal itree B R.
+    clear H.
+    eapply translate; try apply e; eauto.
+  Qed.
+  Goal itree B R.
+    clear H0.
+    eapply translate; try apply e; eauto.
+  Qed.
+End TMP.
+
+(* Definition INCL: forall Es E (IN: In E Es), E ~> (sum_all1 Es). *)
+Definition INCL: forall Es E (IN: { n & nth_error Es n = Some E} ), E ~> (sum_all1 Es).
+  intro. induction Es; ii; ss.
+  - destruct IN. destruct x; ss.
+  - destruct IN. destruct x; ss.
+    + left. clarify.
+    + right. eapply IHEs; eauto.
+Defined.
+
+Definition INCL2: forall Es (nE: { nE & nth_error Es (fst nE) = Some (snd nE)}),
+    (snd (projT1 nE)) ~> (sum_all1 Es).
+  intro. induction Es; ii; ss.
+  - destruct nE. ss. destruct x; ss. destruct n; ss.
+  - destruct nE. ss. destruct x; ss. rename T0 into E. destruct n; ss.
+    + left. clarify.
+    + right. unshelve eapply IHEs; eauto.
+      { exists (n, E). ss. }
+      ss.
+Defined.
+
+Definition INCL3: forall Es (nE: { nE & nth_error Es (fst nE) = Some (snd nE)}),
+    (customE (snd (projT1 nE))) ~> (sum_all1 (List.map customE Es)).
+  intro. induction Es; ii; ss.
+  - destruct nE. ss. destruct x; ss. destruct n; ss.
+  - destruct nE. ss. destruct x; ss. destruct n; ss.
+    + left. clarify.
+    + right. unshelve eapply IHEs; eauto.
+      { exists (n, m). ss. }
+      ss.
+Defined.
+
+Definition FINDN: forall A (a: A) l cond (FIND: List.find cond l = Some a),
+    { n & nth_error l n = Some a}.
+  i. ginduction l; ii; ss.
+  des_ifs.
+  - exists 0. ss.
+  - exploit IHl; eauto. i. destruct x. exists (S x). ss.
+Defined.
+
+Fixpoint find_informative A (cond: A -> bool) (l: list A):
+  option ({ na & nth_error l (fst na) = Some (snd na)}).
+  destruct l.
+  - apply None.
+  - destruct (cond a) eqn:T.
+    + apply Some.
+      exists (0, a).
+      ss.
+    + hexploit (@find_informative _ cond l). intro. destruct X.
+      * destruct s. destruct x. ss. apply Some. exists (S n, a0). ss.
+      * apply None.
+Defined.
+
+Obligation Tactic := idtac.
+
+Definition eval_multimodule_aux (mss: list ModSem):
+  itree (Event +' (sum_all1 (List.map customE mss))) val
   :=
-  let sem: CallExternalE ~> itree (Event +' AnyState) :=
+  let sem: CallExternalE ~> itree (Event +' (sum_all1 (List.map customE mss))) :=
       mrec (fun T (c: CallExternalE T) =>
               let '(CallExternal func_name args) := c in
-              ms <- @unwrapU (CallExternalE +' Event +' AnyState) _ _
-                     (List.find (fun ms => ms.(genv) func_name) mss) ;;
-                     ms.(sem) c)
+              match find_informative (fun ms => ms.(genv) func_name) mss with
+              | Some nms =>
+                let ms := (snd (projT1 nms)) in
+                let t: itree (CallExternalE +' Event +' customE ms) T := (ms.(sem) c) in
+                translate (fun T e =>
+                             match e with
+                             | inl1 e => inl1 e
+                             | inr1 (inl1 e) => inr1 (inl1 e)
+                             | inr1 (inr1 e) =>
+                               let tmp: (sum_all1 (List.map customE mss)) T :=
+                                   (@INCL3 mss
+                                           nms
+                                           T e)
+                                   (* @INCL (List.map customE mss) *)
+                                   (*       (customE ms) *)
+                                   (*       (admit "") *)
+                                   (*       T e *)
+                               in
+                               inr1 (inr1 tmp)
+                             end) t
+                (* ITree.spin *)
+              | _ => triggerUB
+              end)
+              (* match (List.find (fun ms => ms.(genv) func_name) mss) as H with *)
+              (* | Some ms => *)
+              (*   let t: itree (CallExternalE +' Event +' customE ms) T := (ms.(sem) c) in *)
+              (*   translate (fun T e => *)
+              (*                match e with *)
+              (*                | inl1 e => inl1 e *)
+              (*                | inr1 (inl1 e) => inr1 (inl1 e) *)
+              (*                | inr1 (inr1 e) => *)
+              (*                  let tmp := *)
+              (*                      @INCL (List.map customE mss) *)
+              (*                            (customE ms) *)
+              (*                            (admit "") *)
+              (*                            T e *)
+              (*                  in *)
+              (*                  inr1 (inr1 tmp) *)
+              (*                end) t *)
+              (*   (* ITree.spin *) *)
+              (* | _ => triggerUB *)
+              (* end) *)
   in
   sem _ (CallExternal "main" [])
 .
 
+Inductive hlist (mss: list ModSem): Type :=
+| hlist_nil
+    (NIL: mss = [])
+| hlist_cons
+    hd tl
+    (MATCH: mss = hd :: tl)
+    (HD: hd.(owned_heap))
+    (TL: hlist tl)
+.
+
+(* Definition unify_handler (mss: list ModSem): *)
+(*   forall E, (sum_all1 (List.map customE mss)) ~> stateT (hlist mss) (itree E). *)
+
+(* Definition unify_handler (mss0 mss1: list ModSem) (SUBLIST: {tl & mss0 ++ tl = mss1}): *)
+(*   forall E, (sum_all1 (List.map customE mss0)) ~> stateT (list Any) (itree E). *)
+(*   ginduction mss0; i; ss. *)
+(*   destruct SUBLIST. clarify. *)
+(*   destruct X. *)
+(*   - ii. admit "". *)
+(*   - *)
+(* Defined. *)
+
+(* Fixpoint HANDLER E (mss: list ModSem): *)
+(*   (sum_all1 (List.map customE mss)) ~> stateT (list Any) (itree E) := *)
+(*   match mss with *)
+(*   | [] => fun _ => triggerUB *)
+(*   | hd :: tl => case_ hd.(handler) tl.(HANDLER) *)
+(*   end *)
+(* . *)
+Inductive hvec (n: nat): Type :=
+  (* mk_hlist { hlist_body: list Any ; LEN: length hlist_body = n }. *)
+| mk_hvec
+    (l: list Any)
+    (LEN: length l = n)
+.
+
+Definition HANDLE: forall mss,
+    (sum_all1 (List.map customE mss)) ~> stateT (list Any) (itree Event)
+    (* (sum_all1 (List.map customE mss)) ~> stateT (hlist (length mss)) (itree Event) *)
+.
+  intro. induction mss.
+  { i; ss. }
+  (* eapply case_. *)
+  i. destruct X.
+  - eapply a.(handler) in c.
+    ii. ss.
+    destruct X. ss.
+    { eapply triggerUB. }
+    rename a0 into hd. rename X into tl.
+    eapply try_type with (T:= owned_heap a) in hd.
+    destruct hd; cycle 1.
+    { apply triggerUB. }
+    eapply c in o. eapply ITree.map; try eapply o.
+    intro. destruct X. econs.
+    { eapply cons.
+      - apply (existT id _ o0).
+      - apply tl.
+    }
+    apply t.
+  - eapply IHmss in s. ss.
+Defined.
+
+Definition HANDLE2: forall mss,
+    (sum_all1 (List.map customE mss)) ~> stateT (hvec (length mss)) (itree Event)
+.
+  intro. induction mss.
+  { i; ss. }
+  (* eapply case_. *)
+  i. destruct X.
+  - eapply a.(handler) in c.
+    ii. ss.
+    destruct X. destruct l; ss. clarify.
+    rename a0 into hd. rename l into tl.
+    eapply try_type with (T:= owned_heap a) in hd.
+    destruct hd; cycle 1.
+    { apply triggerUB. }
+    eapply c in o. eapply ITree.map; try eapply o.
+    intro. destruct X. econs.
+    { unshelve econs.
+      - eapply cons.
+        { apply (existT id _ o0). }
+        { apply tl. }
+      - ss. eauto.
+    }
+    apply t.
+  - eapply IHmss in s. ss.
+    ii. inv X. destruct l; ss. clarify.
+    rename a0 into hd. rename l into tl.
+    assert(tl':= @mk_hvec (length mss) tl H0).
+    eapply s in tl'.
+    eapply ITree.map; try eapply tl'.
+    intro. destruct X. econs.
+    { unshelve econs.
+      - eapply (hd :: tl).
+      - ss. eauto.
+    }
+    apply t.
+Defined.
+
+Fixpoint INITIAL (mss: list ModSem): list Any :=
+  match mss with
+  | [] => []
+  | hd :: tl => (existT id _ hd.(initial_owned_heap)) :: INITIAL tl
+  end
+.
+
+Definition INITIAL2 (mss: list ModSem): hvec (length mss).
+  induction mss.
+  - ss. econs. instantiate (1:=[]). ss.
+  - ss. inv IHmss. econs. instantiate (1:=(existT id _ a.(initial_owned_heap))::l). ss.
+    eauto.
+Defined.
+
+Definition eval_multimodule (mss: list ModSem): itree Event unit :=
+  let t := eval_multimodule_aux mss in
+  let st := State.interp_state (case_ State.pure_state (HANDLE2 mss)) t in
+  ITree.ignore (st (INITIAL2 mss))
+.
 
 (** Equipped with this evaluator, we can now compute.
     Naturally since Coq is total, we cannot do it directly inside of it.
