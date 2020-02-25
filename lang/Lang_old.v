@@ -763,10 +763,16 @@ End TMP.
 Print Instances Iter.
 Print Instances MonadIter.
 
-Variant AnyState: Type -> Type :=
-| GetAny (midx: nat): AnyState Any
-| SetAny (midx: nat) (a: Any): AnyState unit
-.
+Section TMP.
+  (* Context {owned_heap: Type}. *)
+  Variable (owned_heap: Type).
+  Variant OHState: Type -> Type :=
+  | GetOH: OHState owned_heap
+  | SetOH(oh: owned_heap): OHState unit
+  .
+End TMP.
+Arguments GetOH {owned_heap}.
+Arguments SetOH {owned_heap}.
 
 (* Inductive customE: Type := mk_customE { owned_heap: Type; *)
 (*                                         handler: forall T {E: Type -> Type}, *)
@@ -776,56 +782,102 @@ Inductive ModSem: Type :=
               owned_heap: Type;
               initial_owned_heap: owned_heap;
               (* customE: Type -> Type ; *)
+              handler: forall E, (OHState owned_heap) ~> stateT owned_heap (itree E);
+              sem: CallExternalE ~> itree (CallExternalE +' Event +' (OHState owned_heap)) }.
 
-              (* handler: forall E, AnyState ~> stateT Any (itree E); *)
-              (* sem: CallExternalE ~> itree (CallExternalE +' Event); *)
+Fixpoint ohs_to_OHState (ohs: list Any): Type -> Type :=
+  match ohs with
+  | [] => void1
+  | hd :: tl => OHState (projT1 hd) +' ohs_to_OHState tl
+  end
+.
+Inductive ModSemUnified (ohs: list Any): Type :=
+  mk_ModSemUnified
+    { genvU: string -> bool ;
+      (* customE: Type -> Type ; *)
+      semU: CallExternalE ~> itree (CallExternalE +' Event +' (ohs_to_OHState ohs)) }.
+(* Definition internal_to_external (c: CallInternalE val): CallExternalE val := *)
+(*   let '(CallInternal func_name args) := c in CallExternal (func_name) (args) *)
+(* . *)
 
-              sem: CallExternalE ~> stateT owned_heap (itree (CallExternalE +' Event));
-            }.
+(* Definition external_to_internal (c: CallExternalE val): CallInternalE val := *)
+(*   let '(CallExternal func_name args) := c in CallInternal (func_name) (args) *)
+(* . *)
 
+Definition external_to_internal: CallExternalE ~> CallInternalE :=
+  fun T c => let '(CallExternal func_name args) := c in CallInternal (func_name) (args)
+.
 
+(* Coercion external_to_internal: CallExternalE >-> CallInternalE. *)
 
-Section INJECT.
-  Context {A B E: Type -> Type}.
-  Section TMP.
-    Variable e: (A +' B) unit.
-    Check ((inl1 e): ((A +' B) +' E) unit).
-    (* Check (inl1 (inr1 e): (A +' B +' E) unit). *)
-    Variable ee: (A +' B +' E) unit.
-    Fail Check (ee: ((A +' B) +' E) unit).
-  End TMP.
+Definition eval_program2 (p: program): ModSem
+  := mk_ModSem 
+       (fun func_name => List.in_dec Strings.String.string_dec func_name (List.map fst p))
+       tt
+       (* YJ: I want to use void1, but "initial_owned_heap" prevents me from doing that.
+TODO: see if it is possible: don't require "initial_owned_heap", instead require "(handler initial_owned_heap)".
+           *)
+       (fun _ _ e _ => match e with | GetOH => Ret (tt, tt) | SetOH _ => Ret (tt, tt) end)
+       (fun T (call: CallExternalE T) =>
+          ITree.map snd (interp_imp (denote_program2 p (external_to_internal call)) []))
+.
 
-  Definition inject R (i: itree (A +' E) R) (before after: B R): itree (A +' B +' E) R :=
-    interp (fun _ e =>
-              match e with
-              (* | inl1 a => trigger (inl1 (inl1 e)) *)
-              (* | inr1 e => trigger (inr1 e) *)
-              (* | inl1 a => ITree.spin (* trigger (inl1 e) *) *)
-              (* | inr1 e => ITree.spin (* trigger (inr1 (inr1 e)) *) *)
-              | inl1 a => trigger (inl1 a)
-              | inr1 e => trigger (inr1 (inr1 e))
-              end) i
-  .
+Definition ohs (mss: list ModSem): list Any :=
+  List.map (fun ms => existT id _ ms.(owned_heap)) mss
+.
 
-  (* B R 가지고 된다고 쳐도... R 을 받아서 itree가 뭔가를 해야 할텐데 (GetAny)
-그것까지 inject 할 수는 없음...
-   *)
+Require Import Program.
+Definition Any_dec (a0 a1: Any): {a0=a1} + {a0<>a1}.
+  destruct a0, a1.
+  simpl_depind.
+  destruct (excluded_middle_informative (x = x0)).
+  - clarify.
+    destruct (excluded_middle_informative (p = p0)).
+    + clarify. left. rewrite sigT_eta. ss.
+    + right. ii. simpl_depind. clarify.
+  - right. ii. simpl_depind.
+Defined.
 
-End INJECT.
+(* Global Instance ReSum_ohs ( *)
+Global Instance Embeddable_ohs (ohs: list Any) (oh: Any) (IN: in_dec Any_dec oh ohs) T:
+  Embeddable (OHState (projT1 oh) T) (ohs_to_OHState ohs T).
+ginduction ohs; ii; ss.
+des_ifs.
+- left. ss.
+- right. eapply IHohs; eauto.
+  des_sumbool. ss.
+Defined.
 
+Definition modsem_unificaton (mss: list ModSem): list (ModSemUnified (ohs mss)) :=
+  List.map (fun ms =>
+              if in_dec Any_dec (existT id _ (ms.(owned_heap))) (ohs mss)
+              then mk_ModSemUnified (ohs mss) ms.(genv) ms.(sem)
+              else mk_ModSemUnified (fun _ => false) (fun _ => ITree.spin)
+           ) mss
+.
 
-
-
-(* Definition inject_AnyState R (i: itree (CallExternalE +' Event +' AnyState) R): *)
-(*   itree (CallExternalE +' Event +' AnyState) R. *)
-(* Definition inject_AnyState R (i: itree (CallExternalE +' Event +' AnyState) R): *)
-(*   itree (CallExternalE +' Event +' AnyState) R. *)
-Definition eval_multimodule (mss: list ModSem): itree (Event +' AnyState) val
+Definition eval_multimodule_aux (ohs: list Any) (mss: list (ModSemUnified ohs))
+  : itree (Event +' ohs_to_OHState ohs) val
   :=
-  let sem: CallExternalE ~> itree (Event +' AnyState) :=
+  let sem: CallExternalE ~> itree (Event +' (ohs_to_OHState ohs)) :=
       mrec (fun T (c: CallExternalE T) =>
               let '(CallExternal func_name args) := c in
-              ms <- @unwrapU (CallExternalE +' Event +' AnyState) _ _
+              ms <- @unwrapU (CallExternalE +' Event +' (ohs_to_OHState ohs)) _ _
+                     (List.find (fun ms => ms.(genvU) func_name) mss) ;;
+                     ms.(semU) c)
+  in
+  sem _ (CallExternal "main" [])
+.
+
+Definition eval_multimodule (mss: list ModSem): itree Event val :=
+
+State.interp_state
+Definition eval_multimodule (mss: list ModSem): itree Event val
+  :=
+  let sem: CallExternalE ~> itree Event :=
+      mrec (fun T (c: CallExternalE T) =>
+              let '(CallExternal func_name args) := c in
+              ms <- @unwrapU (CallExternalE +' Event) _ _
                      (List.find (fun ms => ms.(genv) func_name) mss) ;;
                      ms.(sem) c)
   in

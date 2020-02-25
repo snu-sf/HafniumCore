@@ -13,3 +13,15 @@ Definition try_type (a: Any) (T: Type): option T.
   - subst. apply Some. assumption.
   - apply None.
 Defined.
+
+Require Import Program.
+Definition Any_dec (a0 a1: Any): {a0=a1} + {a0<>a1}.
+  destruct a0, a1.
+  simpl_depind.
+  destruct (excluded_middle_informative (x = x0)).
+  - clarify.
+    destruct (excluded_middle_informative (p = p0)).
+    + clarify. left. rewrite sigT_eta. ss.
+    + right. ii. simpl_depind. clarify.
+  - right. ii. simpl_depind.
+Defined.
