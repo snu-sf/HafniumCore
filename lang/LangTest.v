@@ -94,7 +94,7 @@ Module Rec.
               r #:= (Call "f" [y: expr]) #;
               r #:= r + x)
       else (r #:= 0)
-             fi)
+    )
       #;
       Return r
   .
@@ -124,7 +124,7 @@ Module MutRec.
               r #:= (Call "g" [y: expr]) #;
               r #:= r + x)
       else (r #:= 0)
-             fi)
+    )
       #;
       Return r
   .
@@ -135,7 +135,7 @@ Module MutRec.
               r #:= (Call "f" [y: expr]) #;
               r #:= r + x)
       else (r #:= 0)
-             fi)
+    )
       #;
       Return r
   .
@@ -162,7 +162,7 @@ Module Move.
            )
       else
         (accu #:= 0)
-          fi)
+    )
       #;
       Return 77777
   .
@@ -209,7 +209,7 @@ Module CoqCode.
     x #:= 25 #;
       (#if (CoqCode [Var x] coqcode)
         then #put 555
-        else #put 666 fi)
+        else #put 666)
   .
 
   Definition main_function: function :=
@@ -237,13 +237,13 @@ Module Control.
           (* 1 --> continue *)
           (* 2 --> return *)
           (* 3 --> normal *)
-          #if ctrl == 0 then Break else Skip fi #;
+          #if ctrl == 0 then Break else Skip #;
           (* #put 1111 #; *)
           ret #:= ret + 1 #;
-          #if ctrl == 1 then Continue else Skip fi #;
+          #if ctrl == 1 then Continue else Skip #;
           (* #put 2222 #; *)
           ret #:= ret + 10 #;
-          #if ctrl == 2 then (Return (ret + 100)) else Skip fi #;
+          #if ctrl == 2 then (Return (ret + 100)) else Skip #;
           (* #put 3333 #; *)
           ret #:= ret + 1000 #;
 
@@ -255,10 +255,10 @@ Module Control.
   Definition f_function: function := mk_function ["ctrl"] (f "ctrl" "local0" "local1").
 
   Definition main r: stmt :=
-    r #:= (Call "f" [0: expr]) #; #if r == 0 then Skip else Assume fi #;
-    r #:= (Call "f" [1: expr]) #; #if r == 10 then Skip else Assume fi #;
-    r #:= (Call "f" [2: expr]) #; #if r == 111 then Skip else Assume fi #;
-    r #:= (Call "f" [3: expr]) #; #if r == 10110 then Skip else Assume fi #;
+    r #:= (Call "f" [0: expr]) #; #if r == 0 then Skip else Assume #;
+    r #:= (Call "f" [1: expr]) #; #if r == 10 then Skip else Assume #;
+    r #:= (Call "f" [2: expr]) #; #if r == 111 then Skip else Assume #;
+    r #:= (Call "f" [3: expr]) #; #if r == 10110 then Skip else Assume #;
     Skip
   .
 
@@ -309,9 +309,9 @@ Module MultiModule.
               r #:= (Call "g" [y: expr]) #;
               r #:= r + x)
       else (r #:= 0)
-             fi)
-      #;
-      Return r
+    )
+    #;
+    Return r
   .
 
   Definition g x y r: stmt :=
@@ -320,9 +320,9 @@ Module MultiModule.
               r #:= (Call "f" [y: expr]) #;
               r #:= r + x)
       else (r #:= 0)
-             fi)
-      #;
-      Return r
+    )
+    #;
+    Return r
   .
 
   Definition f_function: function := mk_function ["x"] (f "x" "local0" "local1").
@@ -400,9 +400,9 @@ Module MultiModuleLocalState.
               r #:= (Call "f" [y: expr]) #;
               r #:= r + x)
       else (r #:= 0)
-             fi)
-      #;
-      Return r
+    )
+    #;
+    Return r
   .
   Definition g_function: function := mk_function ["x"] (g "x" "local0" "local1").
   Definition g_program: program := [("g", g_function)].

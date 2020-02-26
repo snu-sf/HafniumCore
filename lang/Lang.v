@@ -81,11 +81,18 @@ Inductive expr : Type :=
 | Minus (_ _ : expr)
 | Mult  (_ _ : expr)
 | Equal (_ _: expr)
+| LE (_ _: expr)
 | Load (_: var) (_: expr)
 | CoqCode (_: list expr) (P: list val -> val)
 | Put (e: expr)
 | Get
 | Call (func_name: string) (params: list expr)
+| Ampersand (_: expr)
+(* YJ: Vptr에 addr: nat 추가하면?
+     int x = 5;
+     int *y = &x;
+     int *z = &x;
+ *)
 .
 
 (** The statements are straightforward. The [While] statement is the only
@@ -142,6 +149,7 @@ Module ImpNotations.
   Infix "-" := Minus : expr_scope.
   Infix "*" := Mult : expr_scope.
   Infix "==" := Equal : expr_scope.
+  Infix "<=" := LE : expr_scope.
   (* Notation "'NULL'" := (Vptr []) (at level 40): expr_scope. *)
 
   Bind Scope stmt_scope with stmt.
@@ -180,12 +188,12 @@ Module ImpNotations.
          "'[v' a  '#;' '/' '[' b ']' ']'"
       ): stmt_scope.
 
-  Notation "'#if' i 'then' t 'else' e 'fi'" :=
+  Notation "'#if' i 'then' t 'else' e" :=
     (If i t e)
       (at level 100,
        right associativity,
        format
-         "'[v ' '#if'  i '/' '[' 'then'  t  ']' '/' '[' 'else'  e ']' 'fi' ']'").
+         "'[v ' '#if'  i '/' '[' 'then'  t  ']' '/' '[' 'else'  e ']' ']'").
 
   Notation "'#while' t 'do' b" :=
     (While t b)
@@ -205,6 +213,9 @@ Module ImpNotations.
 
   (* Notation "x '#:=' '#get' e" := *)
   (*   (Get x e) (at level 60, e at level 50): stmt_scope. *)
+
+  Notation "#& e" :=
+    (Ampersand e) (at level 60, e at level 50): stmt_scope.
 
 End ImpNotations.
 
@@ -332,6 +343,11 @@ Section Denote.
                      end
     | Equal a b => l <- denote_expr a ;; r <- denote_expr b ;;
                      Ret (if val_dec l r then Vtrue else Vfalse)
+    | LE a b => l <- denote_expr a ;; r <- denote_expr b ;;
+                  match l, r with
+                  | Vnat l, Vnat r => Ret (if Nat.leb l r then Vtrue else Vfalse)
+                  | _, _ => triggerNB "expr-LE"
+                  end
     | Load x ofs => x <- trigger (GetVar x) ;; ofs <- denote_expr ofs ;;
                       match x, ofs with
                       | Vptr cts, Vnat ofs =>
@@ -356,6 +372,7 @@ Section Denote.
       | Some _ => trigger (CallInternal func_name params)
       | None => trigger (CallExternal func_name params)
       end
+    | Ampersand e => v <- (denote_expr e) ;; Ret (Vptr [v])
     end.
 
   Inductive control: Type :=

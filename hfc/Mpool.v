@@ -32,8 +32,15 @@ Require Import sflib.
 (* From HafniumCore *)
 Require Import Lang.
 Import ImpNotations.
+Local Open Scope expr_scope.
+Local Open Scope stmt_scope.
+
+
 
 Set Implicit Arguments.
+
+Notation "#* e" :=
+  (Load e 0) (at level 40, e at level 50): stmt_scope.
 
 
 
@@ -43,6 +50,11 @@ Module MPOOLSEQ.
   (*
 Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
    *)
+
+  Definition chunk_list_ofs := 0.
+  Definition fallback_ofs := 1.
+  Definition next_chunk_ofs := 0.
+  Definition limit_ofs := 1.
 
   Definition entry_size: nat := 4096.
 
@@ -55,8 +67,8 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
   (*   sl_init(&p->lock); *)
   (* } *)
   Definition init p: stmt :=
-    (Store p 0 Vnull) #;
-    (Store p 1 Vnull)
+    (Store p chunk_list_ofs Vnull) #;
+    (Store p fallback_ofs Vnull)
   .
 
   (* void *mpool_alloc_contiguous(struct mpool *p, size_t count, size_t align) *)
@@ -80,12 +92,11 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
        #if (ret)
        then (Return ret)
        else Skip
-       fi #;
-       p #:= (Load p 1) #;
+       #;
+       p #:= (Load p fallback_ofs) #;
        #if (p)
        then Skip
        else Break
-       fi
      ) #;
     Return Vnull
   .
@@ -135,25 +146,80 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
   
   (*   return ret; *)
   (* } *)
+
+  (***********************************************************************)
+  (***********************************************************************)
+  (***************************SIMPLIFIED**********************************)
+  (***********************************************************************)
+  (***********************************************************************)
+
+  (* void *mpool_alloc_contiguous_no_fallback(struct mpool *p, size_t count, *)
+  (*       				 size_t align) *)
+  (* { *)
+  (*   struct mpool_chunk **prev; *)
+  (*   void *ret = NULL; *)
+  (*   prev = &p->chunk_list; *)
+  (*   while ( *prev != NULL) { *)
+  (*     uintptr_t start; *)
+  (*     struct mpool_chunk *new_chunk; *)
+  (*     struct mpool_chunk *chunk = *prev; *)
+  
+  (*     start = (((uintptr_t)chunk + align - 1) / align) * align; *)
+  
+  (*     new_chunk = *)
+  (*       (struct mpool_chunk * )(start + (count * p->entry_size)); *)
+  (*     if (new_chunk <= chunk->limit) { *)
+  (*       if (new_chunk == chunk->limit) { *)
+  (*         *prev = chunk->next_chunk; *)
+  (*       } else { *)
+  (*         *new_chunk = *chunk; *)
+  (*         *prev = new_chunk; *)
+  (*       } *)
+  
+  (*       if (start - (uintptr_t)chunk >= p->entry_size) { *)
+  (*         chunk->next_chunk = *prev; *)
+  (*         *prev = chunk; *)
+  (*         chunk->limit = (struct mpool_chunk * )start; *)
+  (*       } *)
+  
+  (*       ret = (void * )start; *)
+  (*       break; *)
+  (*     } *)
+  
+  (*     prev = &chunk->next_chunk; *)
+  (*   } *)
+  
+  (*   mpool_unlock(p); *)
+  
+  (*   return ret; *)
+  (* } *)
+
   Definition alloc_contiguous_no_fallback
              (p count prev ret start new_chunk chunk: var): stmt :=
-    prev #:= (Load p 0) #;
+    prev #:= (#& (Load p chunk_list_ofs)) #;
     #while prev
      do (
-       ret #:= (Call "alloc_contiguous_no_fallback" [(p: expr) ; (count: expr)]) #;
-       #if (ret)
-       then (Return ret)
-       else Skip
-       fi #;
-       p #:= (Load p 1) #;
-       #if (p)
-       then Skip
-       else Break
-       fi
+       chunk #:= (#* prev) #;
+       #if count <= (Load chunk limit_ofs)
+        then
+          (
+           #if count == (Load chunk limit_ofs)
+            then Store prev 0 (Load chunk next_chunk_ofs) (** should write to p **)
+            else Skip
+          )
+        else Skip
      ) #;
     Return Vnull
   .
 
 
 End MPOOLSEQ.
+
+
+
+
+
+Module MPOOLCONCUR.
+
+End MPOOLCONCUR.
 
