@@ -297,6 +297,18 @@ Section Denote.
       Usual monadic notations are used in the other cases: we can [bind]
       recursive computations in the case of operators as one would expect. *)
 
+  Section TMP.
+    Print Instances Case.
+    Variable a: nat -> nat.
+    Variable b: unit -> nat.
+    Check ((@case_ _ _ _ case_sum) _ _ _ a b): (nat + unit) -> nat.
+    Check ((@case_ _ _ _ case_sum) _ _ _ a b).
+    Fail Check (case_ a b): Fun (nat + unit) nat.
+    Fail Check (case_ a b).
+    Check (@case_ _ Fun sum case_sum _ _ _ a b).
+    Check (case_ (Case:=case_sum) a b).
+  End TMP.
+
   Variable ctx: program.
 
   Fixpoint denote_expr (e : expr) : itree eff val :=
