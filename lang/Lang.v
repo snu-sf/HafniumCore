@@ -1004,7 +1004,7 @@ Definition HANDLE: forall mss,
     destruct X. ss.
     { eapply (triggerUB "HANDLE1"). }
     rename a0 into hd. rename X into tl.
-    eapply try_type with (T:= owned_heap a) in hd.
+    eapply downcast with (T:= owned_heap a) in hd.
     destruct hd; cycle 1.
     { apply (triggerUB "HANDLE2"). }
     eapply c in o. eapply ITree.map; try eapply o.
@@ -1028,7 +1028,7 @@ Definition HANDLE2: forall mss,
     ii. ss.
     destruct X. destruct l; ss. clarify.
     rename a0 into hd. rename l into tl.
-    eapply try_type with (T:= owned_heap a) in hd.
+    eapply downcast with (T:= owned_heap a) in hd.
     destruct hd; cycle 1.
     { apply (triggerUB "HANDLE2A"). }
     eapply c in o. eapply ITree.map; try eapply o.

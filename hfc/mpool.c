@@ -1,4 +1,15 @@
 
+  void init(struct mpool *p, size_t entry_size)
+  {
+    p->entry_size = entry_size;
+    p->chunk_list = NULL;
+    p->entry_list = NULL;
+    p->fallback = NULL;
+    sl_init(&p->lock);
+  }
+
+
+
   void fini(struct mpool *[MOVE]p) {
 	struct mpool_entry *entry;
 	struct mpool_chunk *chunk;
