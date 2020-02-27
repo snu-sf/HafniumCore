@@ -35,11 +35,17 @@ let shuffle: 'a list -> 'a list = fun xs ->
 
 let cl2s = fun cl -> String.concat "" (List.map (String.make 1) cl)
 
-let print_val = let rec go v =
-  match v with
-  | Vnat n -> print_string ((string_of_int n) ^ " ")
-  | Vptr cts -> print_string "[" ; List.iter go cts ; print_string "]" in
-fun v -> go v ; print_endline " "
+let print_val =
+  let rec go v =
+    match v with
+    | Vnat n -> print_string ((string_of_int n) ^ " ")
+    | Vptr cts ->
+       (* (print_string "[" ; List.iter go cts ; print_string "]") *)
+       if length cts == 0
+       then (print_string ". ")
+       else (print_string "[" ; List.iter go cts ; print_string "]")
+  in
+  fun v -> go v ; print_endline " "
 
 let handle_Event = fun e k ->
   match e with

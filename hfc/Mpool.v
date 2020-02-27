@@ -137,7 +137,7 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
     #while Vtrue
      do (
        Put "looping alloc_contiguous" Vnull #;
-       ret #:= (Call "alloc_contiguous_no_fallback" [CBR p ; CBR ret]) #;
+       ret #:= (Call "alloc_contiguous_no_fallback" [CBR p ; CBV count]) #;
        #if (ret)
        then (Return ret)
        else Skip
@@ -251,6 +251,7 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
      else Guarantee
     #;
     prev #:= (#& (Load p chunk_list_ofs)) #;
+    Put "(A)prev_is: " prev #;
     #while prev
      do (
        chunk #:= (#* prev) #;
@@ -260,6 +261,7 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
        #if (count <= (Load chunk limit_ofs))
         then
           (
+           (Put "If1-limit: " (Load chunk limit_ofs)) #;
            #if count == (Load chunk limit_ofs)
             then (
                 Store prev 0 (Load chunk next_chunk_ofs) (** should write to p **)
@@ -271,11 +273,18 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
               )
            #;
            (* ret = (void * )start; *) (** code doesn't specify the size, but we need too **)
+           Put "(A)chunk_is: " chunk #;
            ret #:= (SubPointerTo chunk (count * entry_size)) #;
+           Put "(A)ret_is: " ret #;
            Break
           )
         else
-          prev #:= #& (Load chunk next_chunk_ofs)
+          (
+            (Put "Else1-limit: " (Load chunk limit_ofs)) #;
+            (prev #:= #& (Load chunk next_chunk_ofs)) #;
+            (Put "Else1-prev: " prev) #;
+            Skip
+          )
      ) #;
     Put "no_fallback returns: " ret #;
     Return ret
@@ -328,7 +337,7 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
   Definition add_chunkF: function :=
     mk_function ["p" ; "begin"] (add_chunk "p" "begin" "chunk").
 
-  Definition big_chunk: val := Vptr (repeat Vnull (entry_size * 10)).
+  Definition big_chunk: val := Vptr (repeat (Vnat 0) (entry_size * 10)).
   Definition main
              (p r1 r2 r3: var): stmt :=
     p #:= Vptr [0: val ; 0: val] #;
@@ -340,15 +349,18 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
 
     r1 #:= Call "alloc_contiguous" [CBR p ; CBV 7] #;
     (Put "alloc first; should succeed: " r1) #;
+    (Put "alloc first; p: " p) #;
 
     r2 #:= Call "alloc_contiguous" [CBR p ; CBV 7] #;
     (Put "alloc second; should fail: " r2) #;
+    (Put "alloc second; p: " p) #;
 
     Call "add_chunk" [CBR p ; CBV r1] #;
-    (Put "add_chunk done" 0) #;
+    (Put "add_chunk done" p) #;
 
     r3 #:= Call "alloc_contiguous" [CBR p ; CBV 7] #;
     (Put "alloc third; should succeed: " r3) #;
+    (Put "alloc third; p: " p) #;
     Skip
   .
   Definition mainF: function := mk_function [] (main "p" "r1" "r2" "r3").
