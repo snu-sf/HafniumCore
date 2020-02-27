@@ -331,9 +331,9 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
              (p r1 r2 r3: var): stmt :=
     p #:= Vptr [0: val ; 0: val] #;
     (Put "before init: " p) #;
-    Call "init: " [p: expr] #;
+    Call "init" [p: expr] #;
     (Put "after init: " p) #;
-    Call "add_chunk: " [p: expr ; big_chunk: expr] #;
+    Call "add_chunk" [p: expr ; big_chunk: expr] #;
     (Put "add_chunk done: " p) #;
 
     r1 #:= Call "alloc_contiguous" [p: expr ; 7: expr] #;
