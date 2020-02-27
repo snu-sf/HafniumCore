@@ -44,7 +44,9 @@ Separate Extraction
          (* LangTest.handle_Event *)
          (* LangTest.cl2s *)
 
-         Mpool.MPOOLSEQ.program
+         Mpool.MPOOLSEQ.TEST.program
+         Mpool.MPOOLSEQ.TEST2.program
+         Mpool.MPOOLSEQ.TEST3.program
 
          LangTest.round_robin
          LangTest.run_till_yield

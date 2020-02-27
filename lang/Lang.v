@@ -116,6 +116,18 @@ Definition Vnodef := Vnull.
 Definition Vtrue := Vnat 1.
 Definition Vfalse := Vnat 0.
 
+(** Casting vals into [bool]:  [0] corresponds to [false] and any nonzero
+      val corresponds to [true].  *)
+Definition is_true (v : val) : bool :=
+  match v with
+  | Vnat n => if (n =? 0)%nat then false else true
+  | Vptr (_ :: _) => true (* nonnull pointer *)
+  (* YJ: THIS IS TEMPORARY HACKING *)
+  | Vptr _ => false (* null pointer *)
+  end
+.
+
+
 (** Expressions are made of variables, constant literals, and arithmetic operations. *)
 Inductive expr : Type :=
 | Var (_ : var)
@@ -125,6 +137,7 @@ Inductive expr : Type :=
 | Mult  (_ _ : expr)
 | Div   (_ _ : expr)
 | Equal (_ _: expr)
+| Neg (_: expr)
 | LE (_ _: expr)
 | Load (_: var) (_: expr)
 | CoqCode (_: list expr) (P: list val -> val)
@@ -206,6 +219,9 @@ Module ImpNotations.
   Infix "==" := Equal : expr_scope.
   Infix "<=" := LE : expr_scope.
   (* Notation "'NULL'" := (Vptr []) (at level 40): expr_scope. *)
+
+  Notation "'!' e" :=
+    (Neg e) (at level 40, e at level 50): stmt_scope.
 
   Bind Scope stmt_scope with stmt.
 
@@ -425,6 +441,7 @@ Section Denote.
                      end
     | Equal a b => l <- denote_expr a ;; r <- denote_expr b ;;
                      Ret (if val_dec l r then Vtrue else Vfalse)
+    | Neg a => v <- denote_expr a ;; Ret (if is_true v then Vfalse else Vtrue)
     | LE a b => l <- denote_expr a ;; r <- denote_expr b ;;
                   match l, r with
                   | Vnat l, Vnat r => Ret (if Nat.leb l r then Vtrue else Vfalse)
@@ -573,16 +590,6 @@ Section Denote.
   (* Definition while (step : itree eff (unit + unit)) : itree eff unit := *)
   (*   iter (C := Kleisli _) (fun _ => step) tt. *)
 
-  (** Casting vals into [bool]:  [0] corresponds to [false] and any nonzero
-      val corresponds to [true].  *)
-  Definition is_true (v : val) : bool :=
-    match v with
-    | Vnat n => if (n =? 0)%nat then false else true
-    | Vptr (_ :: _) => true (* nonnull pointer *)
-                         (* YJ: THIS IS TEMPORARY HACKING *)
-    | Vptr _ => false (* null pointer *)
-    end
-  .
 
   (** The meaning of Imp statements is now easy to define.  They are all
       straightforward, except for [While], which uses our new [while] combinator
