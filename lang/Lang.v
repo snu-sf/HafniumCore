@@ -714,7 +714,8 @@ Definition ignore_l {A B}: itree (A +' B) ~> itree B :=
 .
 
 Definition eval_program (p: program): itree Event unit
-  := ignore_l (ITree.ignore (interp_imp (denote_program p) [])).
+  := @ignore_l CallExternalE Event _ (ITree.ignore (interp_imp (denote_program p) [])).
+  (* := ignore_l (ITree.ignore (interp_imp (denote_program p) [])). *)
 
 Print Instances Iter.
 Print Instances MonadIter.
