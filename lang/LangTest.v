@@ -354,8 +354,8 @@ Module MultiModuleLocalState.
        | [Vnat k] =>
          v <- trigger (GetM k) ;;
            match v with
-           | Some v => triggerSyscall "p" [Vnat 22222] ;; Ret (Vnat v)
-           | None => triggerSyscall "p" [Vnat 11111] ;;
+           | Some v => triggerSyscall "p" "HIT" [Vnat 22222] ;; Ret (Vnat v)
+           | None => triggerSyscall "p" "MISS" [Vnat 11111] ;;
              match k with
              | O => Ret (Vnat O)
              | _ => prev <- trigger (CallExternal "g" [Vnat (Nat.pred k)]);;

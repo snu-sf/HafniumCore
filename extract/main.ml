@@ -1,4 +1,5 @@
 open Lang
+open Mpool
 open LangTest
 
 open List
@@ -45,9 +46,12 @@ let handle_Event = fun e k ->
   | ENB msg -> failwith ("NB:" ^ (cl2s msg))
   | EUB msg -> failwith ("UB:" ^ (cl2s msg))
   (* | Syscall (['p'], [v]) -> print_val v ; k (Obj.magic ()) *)
-  | ESyscall ('p'::[], v::[]) -> print_val v ; k (Obj.magic ())
-  | ESyscall ('g'::[], []) -> let x = read_int() in k (Obj.magic (Vnat x))
-  | ESyscall (cl, vs) -> print_endline (cl2s cl) ;
+  | ESyscall ('p'::[], msg, v::[]) ->
+     print_string (cl2s msg) ; print_val v ; k (Obj.magic ())
+  | ESyscall ('g'::[], _,   []) ->
+     let x = read_int() in k (Obj.magic (Vnat x))
+  | ESyscall (cl,      msg, vs) ->
+     print_string (cl2s msg) ; print_endline (cl2s cl) ;
 (* print_val (List.nth vs 0) ; *)
 (* print_int (length cl) ; *)
 (* print_int (length vs) ; *)
@@ -116,24 +120,28 @@ let rec my_rr q =
 
 let main =
   Random.self_init();
-  print_endline "" ;
-  run (eval_program LoadStore.program) ;
+  (* print_endline "-----------------------------------" ;
+   * run (eval_program LoadStore.program) ;
+   * print_endline "-----------------------------------" ;
+   * run (eval_program Rec.program) ;
+   * print_endline "-----------------------------------" ;
+   * run (eval_program MutRec.program) ;
+   * print_endline "-----------------------------------" ;
+   * run (eval_program Move.program) ;
+   * print_endline "-----------------------------------" ;
+   * run (eval_program CoqCode.program) ;
+   * print_endline "-----------------------------------" ;
+   * run (eval_program Control.program) ;
+   * print_endline "-----------------------------------" ;
+   * run (round_robin (fun _ -> shuffle) (List.map eval_program MultiCore.programs)) ;
+   * print_endline "-----------------------------------" ;
+   * run (MultiModule.isem) ;
+   * print_endline "-----------------------------------" ;
+   * run (MultiModuleLocalState.isem) ; *)
   print_endline "-----------------------------------" ;
-  run (eval_program Rec.program) ;
-  print_endline "-----------------------------------" ;
-  run (eval_program MutRec.program) ;
-  print_endline "-----------------------------------" ;
-  run (eval_program Move.program) ;
-  print_endline "-----------------------------------" ;
-  run (eval_program CoqCode.program) ;
-  print_endline "-----------------------------------" ;
-  run (eval_program Control.program) ;
-  print_endline "-----------------------------------" ;
-  run (round_robin (fun _ -> shuffle) (List.map eval_program MultiCore.programs)) ;
-  print_endline "-----------------------------------" ;
-  run (MultiModule.isem) ;
-  print_endline "-----------------------------------" ;
-  run (MultiModuleLocalState.isem) ;
+  run (eval_program Mpool.MPOOLSEQ.program) ;
+
+
   (* print_endline "-----------------------------------" ;
    * my_rr (List.map eval_program Concur.programs) ; *)
   ()

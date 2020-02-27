@@ -85,7 +85,7 @@ Inductive expr : Type :=
 | LE (_ _: expr)
 | Load (_: var) (_: expr)
 | CoqCode (_: list expr) (P: list val -> val)
-| Put (e: expr)
+| Put (msg: string) (e: expr)
 | Get
 | Call (func_name: string) (params: list expr)
 | Ampersand (_: expr)
@@ -218,7 +218,7 @@ Module ImpNotations.
   (*   (Load x ofs) (at level 99): expr_scope. *)
 
   Notation "#put e" :=
-    (Put e) (at level 60, e at level 50): stmt_scope.
+    (Put "" e) (at level 60, e at level 50): stmt_scope.
 
   (* Notation "x '#:=' '#get' e" := *)
   (*   (Get x e) (at level 60, e at level 50): stmt_scope. *)
@@ -257,6 +257,7 @@ Variant Event: Type -> Type :=
 | EUB (msg: string): Event void
 | ESyscall
     (name: string)
+    (msg: string)
     (arg: list val): Event val
 | EYield: Event unit
 .
@@ -276,7 +277,7 @@ Definition triggerUB {E A} `{Event -< E} (msg: string): itree E A :=
 Definition triggerNB {E A} `{Event -< E} (msg: string) : itree E A :=
   vis (ENB msg) (fun v => match v: void with end)
 .
-Definition triggerSyscall {E} `{Event -< E} : string -> list val -> itree E val :=
+Definition triggerSyscall {E} `{Event -< E} : string -> string -> list val -> itree E val :=
   embed ESyscall
 .
 
@@ -398,9 +399,9 @@ Section Denote.
          (* (if (P vs) *)
          (*      then Vtrue *)
          (*      else Vfalse) *)
-    | Put e => v <- denote_expr e ;;
-                 triggerSyscall "p" [v] ;; Ret (Vnodef)
-    | Get => triggerSyscall "g" []
+    | Put msg e => v <- denote_expr e ;;
+                 triggerSyscall "p" msg [v] ;; Ret (Vnodef)
+    | Get => triggerSyscall "g" "" []
     | Call func_name params =>
       params <- mapT (fun param => denote_expr param) params;;
       match (find (fun '(n, _) => string_dec func_name n) ctx) with

@@ -330,19 +330,23 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
   Definition main
              (p r1 r2 r3: var): stmt :=
     p #:= Vptr [0: val ; 0: val] #;
-    Call "init" [p: expr] #;
-    Call "add_chunk" [p: expr ; big_chunk: expr] #;
+    (Put "before init: " p) #;
+    Call "init: " [p: expr] #;
+    (Put "after init: " p) #;
+    Call "add_chunk: " [p: expr ; big_chunk: expr] #;
+    (Put "add_chunk done: " p) #;
 
     r1 #:= Call "alloc_contiguous" [p: expr ; 7: expr] #;
-    #put r1 #;
+    (Put "alloc first; should succeed: " r1) #;
 
     r2 #:= Call "alloc_contiguous" [p: expr ; 7: expr] #;
-    #put r2 #;
+    (Put "alloc second; should fail: " r2) #;
 
     Call "add_chunk" [p: expr ; r1: expr] #;
+    (Put "add_chunk done" 0) #;
 
     r3 #:= Call "alloc_contiguous" [p: expr ; 7: expr] #;
-    #put r3 #;
+    (Put "alloc third; should succeed: " r3) #;
     Skip
   .
   Definition mainF: function := mk_function [] (main "p" "r1" "r2" "r3").
