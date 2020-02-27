@@ -12,6 +12,7 @@ From ExtLib Require Import
      Structures.Traversable
      Structures.Foldable
      Structures.Reducible
+     Structures.Maps
      Data.List.
 
 From ITree Require Import
@@ -37,6 +38,48 @@ About excluded_middle_informative.
 Set Implicit Arguments.
 (* Set Typeclasess Depth 4. *)
 (* Typeclasses eauto := debug 4. *)
+
+
+
+
+(* YJ: use RelDec? *)
+Instance PFun_Map (K V: Type) (dec: forall k0 k1, {k0=k1} + {k0<>k1}):
+                                                    (Map K V (K -> option V)) :=
+  Build_Map
+    (fun _ => None)
+    (fun k0 v m => fun k1 => if dec k0 k1 then Some v else m k1)
+    (fun k0 m => fun k1 => if dec k0 k1 then None else m k1)
+    (fun k m => m k)
+    (fun m0 m1 => fun k => match (m0 k) with
+                           | Some v => Some v
+                           | _ => m1 k
+                           end)
+.
+
+Fixpoint filter_map A B (f: A -> option B) (l: list A): list B :=
+  match l with
+  | [] => []
+  | hd :: tl =>
+    match (f hd) with
+    | Some b => b :: (filter_map f tl)
+    | _ => filter_map f tl
+    end
+  end
+.
+
+Definition try_left A B (ab: A + B): option A :=
+  match ab with
+  | inl a => Some a
+  | _ => None
+  end
+.
+
+Definition try_right A B (ab: A + B): option B :=
+  match ab with
+  | inr b => Some b
+  | _ => None
+  end
+.
 
 Definition var : Set := string.
 
@@ -87,7 +130,7 @@ Inductive expr : Type :=
 | CoqCode (_: list expr) (P: list val -> val)
 | Put (msg: string) (e: expr)
 | Get
-| Call (func_name: string) (params: list expr)
+| Call (func_name: string) (params: list (var + expr))
 | Ampersand (_: expr)
 | GetLen (_: expr)
 (* YJ: Vptr에 addr: nat 추가하면?
@@ -264,11 +307,11 @@ Variant Event: Type -> Type :=
 
 (* YJ: Will be consumed internally *)
 Variant CallInternalE: Type -> Type :=
-| CallInternal (func_name: string) (args: list val): CallInternalE val
+| CallInternal (func_name: string) (args: list val): CallInternalE (val * (var->option val))
 .
 
 Variant CallExternalE: Type -> Type :=
-| CallExternal (func_name: string) (args: list val): CallExternalE val
+| CallExternal (func_name: string) (args: list val): CallExternalE (val * (var->option val))
 .
 
 Definition triggerUB {E A} `{Event -< E} (msg: string): itree E A :=
@@ -403,11 +446,28 @@ Section Denote.
                  triggerSyscall "p" msg [v] ;; Ret (Vnodef)
     | Get => triggerSyscall "g" "" []
     | Call func_name params =>
-      params <- mapT (fun param => denote_expr param) params;;
-      match (find (fun '(n, _) => string_dec func_name n) ctx) with
-      | Some _ => trigger (CallInternal func_name params)
-      | None => trigger (CallExternal func_name params)
-      end
+      (* | Call retv_name func_name arg_names => *)
+      (* args <- mapT (fun arg => trigger (GetVar arg)) arg_names;; *)
+      (* '(retv, args_updated) <- trigger (CallInternal func_name args);; *)
+      (* if (length args_updated =? length arg_names)%nat *)
+      (* then *)
+      (*   mapT (fun '(arg_name, arg_updated) => trigger (SetVar arg_name arg_updated)) *)
+      (*        (combine arg_names args_updated);; *)
+      (*        trigger (SetVar retv_name retv) ;; *)
+      (*        ret (CNormal, Vnodef) *)
+      (* else triggerNB *)
+
+      args <- (mapT (case_ (Case:=case_sum)
+                           (fun name => trigger (GetVar name))
+                           (fun e => denote_expr e)) params) ;;
+      '(retv, args_updated) <- match (find (fun '(n, _) => string_dec func_name n) ctx) with
+                               | Some _ => trigger (CallInternal func_name args)
+                               | None => trigger (CallExternal func_name args)
+                               end ;;
+      (mapT
+         (fun name => newv <- unwrapN (args_updated name) ;; trigger (SetVar name newv))
+         (filter_map (fun ne => match ne with | inl n => Some n | _ => None end) params)) ;;
+      ret retv
     | Ampersand e => v <- (denote_expr e) ;; Ret (Vptr [v])
     | SubPointerFrom p from =>
       p <- (denote_expr p) ;;
@@ -621,6 +681,8 @@ Section Denote.
                                      (combine f.(params) args) f.(body) in
            '(_, retv) <- denote_stmt ctx new_body ;;
            (* YJ: maybe we can check whether "control" is return (not break/continue) here *)
+            fold_left (fun s i =>) (filter_map f.(params))
+            params_updated <- mapT (fun param => trigger (GetVar param)) (f.(params));;
            trigger PopEnv ;;
            ret (retv)
          else triggerNB "denote_function"
