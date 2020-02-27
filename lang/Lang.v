@@ -80,6 +80,7 @@ Inductive expr : Type :=
 | Plus  (_ _ : expr)
 | Minus (_ _ : expr)
 | Mult  (_ _ : expr)
+| Div   (_ _ : expr)
 | Equal (_ _: expr)
 | LE (_ _: expr)
 | Load (_: var) (_: expr)
@@ -88,11 +89,18 @@ Inductive expr : Type :=
 | Get
 | Call (func_name: string) (params: list expr)
 | Ampersand (_: expr)
+| GetLen (_: expr)
 (* YJ: Vptr에 addr: nat 추가하면?
      int x = 5;
      int *y = &x;
      int *z = &x;
  *)
+
+(* YJ: fixpoint decreasing argument thing *)
+(* | SubPointer (_: expr) (from: option expr) (to: option expr) *)
+(* | SubPointer (_: expr) (from: expr + unit) (to: expr + unit) *)
+| SubPointerFrom (_: expr) (from: expr)
+| SubPointerTo (_: expr) (to: expr)
 .
 
 (** The statements are straightforward. The [While] statement is the only
@@ -148,6 +156,7 @@ Module ImpNotations.
   Infix "+" := Plus : expr_scope.
   Infix "-" := Minus : expr_scope.
   Infix "*" := Mult : expr_scope.
+  Infix "/" := Div : expr_scope.
   Infix "==" := Equal : expr_scope.
   Infix "<=" := LE : expr_scope.
   (* Notation "'NULL'" := (Vptr []) (at level 40): expr_scope. *)
@@ -271,6 +280,27 @@ Definition triggerSyscall {E} `{Event -< E} : string -> list val -> itree E val 
   embed ESyscall
 .
 
+Notation unwrap :=
+  (fun x default => match x with
+                    | Some y => y
+                    | _ => default
+                    end)
+.
+
+(* Notation "'unwrap' x default" := *)
+(*   (match x with *)
+(*    | Some y => y *)
+(*    | _ => default *)
+(*    end) (at level 60) *)
+(* . *)
+
+(* Definition unwrap X (x: option X) (default: X): X := *)
+(*   match x with *)
+(*   | Some x => x *)
+(*   | _ => default *)
+(*   end *)
+(* . *)
+
 Definition unwrapN {E X} `{Event -< E} (x: option X): itree E X :=
   match x with
   | Some x => ret x
@@ -341,6 +371,11 @@ Section Denote.
                      | Vnat l, Vnat r => ret (Vnat (l * r))
                      | _, _ => triggerNB "expr-mult"
                      end
+    | Div a b   => l <- denote_expr a ;; r <- denote_expr b ;;
+                     match l, r with
+                     | Vnat l, Vnat r => ret (Vnat (l / r))
+                     | _, _ => triggerNB "expr-mult"
+                     end
     | Equal a b => l <- denote_expr a ;; r <- denote_expr b ;;
                      Ret (if val_dec l r then Vtrue else Vfalse)
     | LE a b => l <- denote_expr a ;; r <- denote_expr b ;;
@@ -373,6 +408,49 @@ Section Denote.
       | None => trigger (CallExternal func_name params)
       end
     | Ampersand e => v <- (denote_expr e) ;; Ret (Vptr [v])
+    | SubPointerFrom p from =>
+      p <- (denote_expr p) ;;
+        match p with
+        | Vptr cts =>
+          match from with
+          | Vnat from => Ret (Vptr (skipn from cts))
+          | _ => triggerNB "expr-subpointer1"
+          end
+        | _ => triggerNB "expr-subpointer2"
+        end
+    | SubPointerTo p to =>
+      p <- (denote_expr p) ;;
+        match p with
+        | Vptr cts =>
+          match to with
+          | Vnat to => Ret (Vptr (firstn to cts))
+          | _ => triggerNB "expr-subpointer1"
+          end
+        | _ => triggerNB "expr-subpointer2"
+        end
+    (* | SubPointer p from to => *)
+    (*   p <- (denote_expr p) ;; *)
+    (*     match p with *)
+    (*     | Vptr cts => *)
+          (* from <- denote_expr (match from with *)
+          (*                      | inl from => from *)
+          (*                      | inr _ => 0 *)
+          (*                      end) ;; *)
+          (* to <- denote_expr (match to with *)
+          (*                    | inl to => to *)
+          (*                    | inr _ => 0 *)
+          (*                    end) ;; *)
+        (*   match from, to with *)
+        (*   | Vnat from, Vnat to => Ret (Vptr (firstn to (skipn from cts))) *)
+        (*   | _, _ => triggerNB "expr-subpointer1" *)
+        (*   end *)
+        (* | _ => triggerNB "expr-subpointer2" *)
+        (* end *)
+    | GetLen e => e <- denote_expr e ;;
+                    match e with
+                    | Vptr cts => Ret ((length cts): val)
+                    | _ => triggerNB "expr-getlen"
+                    end
     end.
 
   Inductive control: Type :=
