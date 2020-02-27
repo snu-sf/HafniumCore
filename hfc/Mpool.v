@@ -162,22 +162,6 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
      then Skip
      else Guarantee
     #;
-    (* #while Vtrue *)
-    (*  do ( *)
-    (*    Put "looping alloc_contiguous" Vnull #; *)
-    (*    next #:= (Load p chunk_list_ofs) #; *)
-    (*    ret #:= (Call "alloc_contiguous_no_fallback2" [CBR next ; CBV count]) #; *)
-    (*    Store p chunk_list_ofs next #; *)
-    (*    #if (ret) *)
-    (*    then (Return ret) *)
-    (*    else Skip *)
-    (*    #; *)
-    (*    p #:= (Load p fallback_ofs) #; *)
-    (*    #if (p) *)
-    (*    then Skip *)
-    (*    else Break *)
-    (*  ) #; *)
-    (* Return Vnull *)
     next #:= (Load p chunk_list_ofs) #;
     ret #:= (Call "alloc_contiguous_no_fallback2" [CBR next ; CBV count]) #;
     Store p chunk_list_ofs next #;
