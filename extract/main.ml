@@ -120,26 +120,28 @@ let rec my_rr q =
 
 let main =
   Random.self_init();
-  (* print_endline "-----------------------------------" ;
-   * run (eval_program LoadStore.program) ;
-   * print_endline "-----------------------------------" ;
-   * run (eval_program Rec.program) ;
-   * print_endline "-----------------------------------" ;
-   * run (eval_program MutRec.program) ;
-   * print_endline "-----------------------------------" ;
-   * run (eval_program Move.program) ;
-   * print_endline "-----------------------------------" ;
-   * run (eval_program CoqCode.program) ;
-   * print_endline "-----------------------------------" ;
-   * run (eval_program Control.program) ;
-   * print_endline "-----------------------------------" ;
-   * run (round_robin (fun _ -> shuffle) (List.map eval_program MultiCore.programs)) ;
-   * print_endline "-----------------------------------" ;
-   * run (MultiModule.isem) ;
-   * print_endline "-----------------------------------" ;
-   * run (MultiModuleLocalState.isem) ; *)
+
   print_endline "-----------------------------------" ;
-  run (eval_program Mpool.MPOOLSEQ.program) ;
+  run (eval_program LoadStore.program) ;
+  print_endline "-----------------------------------" ;
+  run (eval_program Rec.program) ;
+  print_endline "-----------------------------------" ;
+  run (eval_program MutRec.program) ;
+  print_endline "-----------------------------------" ;
+  run (eval_program Move.program) ;
+  print_endline "-----------------------------------" ;
+  run (eval_program CoqCode.program) ;
+  print_endline "-----------------------------------" ;
+  run (eval_program Control.program) ;
+  print_endline "-----------------------------------" ;
+  run (round_robin (fun _ -> shuffle) (List.map eval_program MultiCore.programs)) ;
+  print_endline "-----------------------------------" ;
+  run (MultiModule.isem) ;
+  print_endline "-----------------------------------" ;
+  run (MultiModuleLocalState.isem) ;
+
+  (* print_endline "-----------------------------------" ;
+   * run (eval_program Mpool.MPOOLSEQ.program) ; *)
 
 
   (* print_endline "-----------------------------------" ;

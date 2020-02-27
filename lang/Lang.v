@@ -146,6 +146,9 @@ Inductive expr : Type :=
 | SubPointerTo (_: expr) (to: expr)
 .
 
+Definition CBV: expr -> var + expr := inr.
+Definition CBR: var -> var + expr := inl.
+
 (** The statements are straightforward. The [While] statement is the only
  potentially diverging one. *)
 
@@ -307,11 +310,11 @@ Variant Event: Type -> Type :=
 
 (* YJ: Will be consumed internally *)
 Variant CallInternalE: Type -> Type :=
-| CallInternal (func_name: string) (args: list val): CallInternalE (val * (var->option val))
+| CallInternal (func_name: string) (args: list val): CallInternalE (val * list val)
 .
 
 Variant CallExternalE: Type -> Type :=
-| CallExternal (func_name: string) (args: list val): CallExternalE (val * (var->option val))
+| CallExternal (func_name: string) (args: list val): CallExternalE (val * list val)
 .
 
 Definition triggerUB {E A} `{Event -< E} (msg: string): itree E A :=
@@ -464,9 +467,14 @@ Section Denote.
                                | Some _ => trigger (CallInternal func_name args)
                                | None => trigger (CallExternal func_name args)
                                end ;;
-      (mapT
-         (fun name => newv <- unwrapN (args_updated name) ;; trigger (SetVar name newv))
-         (filter_map (fun ne => match ne with | inl n => Some n | _ => None end) params)) ;;
+      let nvs: list (var * val) := (filter_map (fun '(ne, v) =>
+                                                  match ne with
+                                                  | inl n => Some (n, v)
+                                                  | _ => None
+                                                  end)
+                                               (combine params args_updated))
+      in
+      mapT (fun '(n, v) => trigger (SetVar n v)) nvs ;;
       ret retv
     | Ampersand e => v <- (denote_expr e) ;; Ret (Vptr [v])
     | SubPointerFrom p from =>
@@ -681,14 +689,13 @@ Section Denote.
                                      (combine f.(params) args) f.(body) in
            '(_, retv) <- denote_stmt ctx new_body ;;
            (* YJ: maybe we can check whether "control" is return (not break/continue) here *)
-            fold_left (fun s i =>) (filter_map f.(params))
-            params_updated <- mapT (fun param => trigger (GetVar param)) (f.(params));;
+           params_updated <- mapT (fun param => trigger (GetVar param)) (f.(params));;
            trigger PopEnv ;;
-           ret (retv)
+           ret (retv, params_updated)
          else triggerNB "denote_function"
   .
 
-  Definition denote_program (p: program): itree eff val :=
+  Definition denote_program (p: program): itree eff (val * (list val)) :=
     (* mrec (denote_function3 p) (CallInternal "MAIN" []). *)
     let sem: CallInternalE ~> itree eff := mrec (denote_function p) in
     sem _ (CallInternal "main" []).
@@ -1074,7 +1081,7 @@ Defined.
 Obligation Tactic := idtac.
 
 Definition eval_multimodule_aux (mss: list ModSem):
-  itree (Event +' (sum_all1 (List.map customE mss))) val
+  itree (Event +' (sum_all1 (List.map customE mss))) (val * list val)
   :=
   let sem: CallExternalE ~> itree (Event +' (sum_all1 (List.map customE mss))) :=
       mrec (fun T (c: CallExternalE T) =>

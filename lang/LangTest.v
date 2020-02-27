@@ -41,6 +41,9 @@ Set Implicit Arguments.
 
 
 
+
+
+
 Module LoadStore.
 
   Definition main x sum: stmt :=
@@ -88,10 +91,11 @@ Local Open Scope stmt_scope.
 
 
 Module Rec.
+
   Definition f x y r: stmt :=
     (#if x
       then (y #:= (x - 1) #;
-              r #:= (Call "f" [y: expr]) #;
+              r #:= (Call "f" [CBV y]) #;
               r #:= r + x)
       else (r #:= 0)
     )
@@ -103,7 +107,7 @@ Module Rec.
 
   Definition main x r: stmt :=
     x #:= 10 #;
-      r #:= (Call "f" [x: expr]) #;
+      r #:= (Call "f" [CBV x]) #;
       #put r
   .
 
@@ -121,7 +125,7 @@ Module MutRec.
   Definition f x y r: stmt :=
     (#if x
       then (y #:= (x - 1) #;
-              r #:= (Call "g" [y: expr]) #;
+              r #:= (Call "g" [CBV y]) #;
               r #:= r + x)
       else (r #:= 0)
     )
@@ -132,7 +136,7 @@ Module MutRec.
   Definition g x y r: stmt :=
     (#if x
       then (y #:= (x - 1) #;
-              r #:= (Call "f" [y: expr]) #;
+              r #:= (Call "f" [CBV y]) #;
               r #:= r + x)
       else (r #:= 0)
     )
@@ -156,7 +160,9 @@ Module Move.
   Definition f (x y accu unused: var): stmt :=
     (#if x
       then (y #:= (x - 1) #;
-              unused #:= (Call "f" [y: expr ; accu: expr]) #;
+              (* Put "before call" accu #; *)
+              unused #:= (Call "f" [CBV y ; CBR accu]) #;
+              (* Put "after call" accu #; *)
               accu #:= accu + x #;
                                 Skip
            )
@@ -170,7 +176,7 @@ Module Move.
   Definition main x accu unused: stmt :=
     x #:= 10 #;
       accu #:= 1000 #;
-      unused #:= (Call "f" [x: expr ; accu: expr]) #;
+      unused #:= (Call "f" [CBV x ; CBR accu]) #;
       #put accu
   .
 
@@ -255,10 +261,10 @@ Module Control.
   Definition f_function: function := mk_function ["ctrl"] (f "ctrl" "local0" "local1").
 
   Definition main r: stmt :=
-    r #:= (Call "f" [0: expr]) #; #if r == 0 then Skip else Assume #;
-    r #:= (Call "f" [1: expr]) #; #if r == 10 then Skip else Assume #;
-    r #:= (Call "f" [2: expr]) #; #if r == 111 then Skip else Assume #;
-    r #:= (Call "f" [3: expr]) #; #if r == 10110 then Skip else Assume #;
+    r #:= (Call "f" [CBV 0]) #; #if r == 0 then Skip else Assume #;
+    r #:= (Call "f" [CBV 1]) #; #if r == 10 then Skip else Assume #;
+    r #:= (Call "f" [CBV 2]) #; #if r == 111 then Skip else Assume #;
+    r #:= (Call "f" [CBV 3]) #; #if r == 10110 then Skip else Assume #;
     Skip
   .
 
@@ -306,7 +312,7 @@ Module MultiModule.
   Definition f x y r: stmt :=
     (#if x
       then (y #:= (x - 1) #;
-              r #:= (Call "g" [y: expr]) #;
+              r #:= (Call "g" [CBV y]) #;
               r #:= r + x)
       else (r #:= 0)
     )
@@ -317,7 +323,7 @@ Module MultiModule.
   Definition g x y r: stmt :=
     (#if x
       then (y #:= (x - 1) #;
-              r #:= (Call "f" [y: expr]) #;
+              r #:= (Call "f" [CBV y]) #;
               r #:= r + x)
       else (r #:= 0)
     )
@@ -354,17 +360,17 @@ Module MultiModuleLocalState.
        | [Vnat k] =>
          v <- trigger (GetM k) ;;
            match v with
-           | Some v => triggerSyscall "p" "HIT" [Vnat 22222] ;; Ret (Vnat v)
-           | None => triggerSyscall "p" "MISS" [Vnat 11111] ;;
+           | Some v => triggerSyscall "p" "HIT" [Vnull] ;; Ret (Vnat v, [])
+           | None => triggerSyscall "p" "MISS" [Vnull] ;;
              match k with
-             | O => Ret (Vnat O)
-             | _ => prev <- trigger (CallExternal "g" [Vnat (Nat.pred k)]);;
-                         match prev with
-                         | Vnat prev =>
-                           let v := (prev + k)%nat in
-                           trigger (SetM k v) ;; Ret (Vnat v)
-                         | _ => triggerUB "memoizing_f"
-                         end
+             | O => Ret (Vnat O, [])
+             | _ => '(prev, _) <- trigger (CallExternal "g" [Vnat (Nat.pred k)]);;
+                                match prev with
+                                | Vnat prev =>
+                                  let v := (prev + k)%nat in
+                                  trigger (SetM k v) ;; Ret (Vnat v, [])
+                                | _ => triggerUB "memoizing_f"
+                                end
              end
            end
        | _ => triggerUB "memoizing_f"
@@ -397,7 +403,7 @@ Module MultiModuleLocalState.
   Definition g x y r: stmt :=
     (#if x
       then (y #:= (x - 1) #;
-              r #:= (Call "f" [y: expr]) #;
+              r #:= (Call "f" [CBV y]) #;
               r #:= r + x)
       else (r #:= 0)
     )
@@ -408,28 +414,28 @@ Module MultiModuleLocalState.
   Definition g_program: program := [("g", g_function)].
 
   Definition main r: stmt :=
-      r #:= (Call "f" [10: expr]) #;
+      r #:= (Call "f" [CBV 10]) #;
       #put r #;
 
       #put 99999 #;
       #put 99999 #;
       #put 99999 #;
 
-      r #:= (Call "f" [10: expr]) #;
+      r #:= (Call "f" [CBV 10]) #;
       #put r #;
 
       #put 99999 #;
       #put 99999 #;
       #put 99999 #;
 
-      r #:= (Call "f" [5: expr]) #;
+      r #:= (Call "f" [CBV 5]) #;
       #put r #;
 
       #put 99999 #;
       #put 99999 #;
       #put 99999 #;
 
-      r #:= (Call "f" [8: expr]) #;
+      r #:= (Call "f" [CBV 8]) #;
       #put r #;
 
       Skip
