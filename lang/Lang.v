@@ -466,7 +466,7 @@ Section Denote.
                                end ;;
       (mapT
          (fun name => newv <- unwrapN (args_updated name) ;; trigger (SetVar name newv))
-         (filter_map (fun ne => match ne with | inl n => Some n | _ => None end) params)) ;;
+         (filter_map (@try_left _ _) params)) ;;
       ret retv
     | Ampersand e => v <- (denote_expr e) ;; Ret (Vptr [v])
     | SubPointerFrom p from =>
@@ -681,10 +681,16 @@ Section Denote.
                                      (combine f.(params) args) f.(body) in
            '(_, retv) <- denote_stmt ctx new_body ;;
            (* YJ: maybe we can check whether "control" is return (not break/continue) here *)
-            fold_left (fun s i =>) (filter_map f.(params))
-            params_updated <- mapT (fun param => trigger (GetVar param)) (f.(params));;
+           (* nvs <- mapT (fun n => v <- trigger (GetVar n) ;; (n, v)) *)
+           (*             (filter_map (@try_left _ _) params) ;; *)
+            let nvs: list (var * val) := admit "" in
+           let params_updated: (var->option val) :=
+               (fold_left (fun s i => Maps.add (fst i) (snd i) s)
+                          (filter_map (@try_left _ _) params)
+                          Maps.empty)
+           in
            trigger PopEnv ;;
-           ret (retv)
+           ret (retv, params_updated )
          else triggerNB "denote_function"
   .
 
