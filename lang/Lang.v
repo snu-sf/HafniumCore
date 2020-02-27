@@ -478,7 +478,7 @@ Section Denote.
       ret retv
     | Ampersand e => v <- (denote_expr e) ;; Ret (Vptr [v])
     | SubPointerFrom p from =>
-      p <- (denote_expr p) ;;
+      p <- (denote_expr p) ;; from <- (denote_expr from) ;;
         match p with
         | Vptr cts =>
           match from with
@@ -488,7 +488,7 @@ Section Denote.
         | _ => triggerNB "expr-subpointer2"
         end
     | SubPointerTo p to =>
-      p <- (denote_expr p) ;;
+      p <- (denote_expr p) ;; to <- (denote_expr to) ;;
         match p with
         | Vptr cts =>
           match to with

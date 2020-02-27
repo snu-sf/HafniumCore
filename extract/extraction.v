@@ -3,7 +3,7 @@ Require Extraction.
 (* From HafniumCore *)
 (* YJ: Having some makefile problem. (dependency checking) need to solve that !! *)
 Require Import Lang LangTest.
-(* Require Import Mpool. *)
+Require Import Mpool.
 
 Require Import ExtrOcamlBasic.
 Require Import ExtrOcamlString.
@@ -44,7 +44,7 @@ Separate Extraction
          (* LangTest.handle_Event *)
          (* LangTest.cl2s *)
 
-         (* Mpool.MPOOLSEQ.program *)
+         Mpool.MPOOLSEQ.program
 
          LangTest.round_robin
          LangTest.run_till_yield

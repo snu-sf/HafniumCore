@@ -136,7 +136,8 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
              (ret: var): stmt :=
     #while Vtrue
      do (
-       ret #:= (Call "alloc_contiguous_no_fallback" [(p: expr) ; (count: expr)]) #;
+       Put "looping alloc_contiguous" Vnull #;
+       ret #:= (Call "alloc_contiguous_no_fallback" [CBR p ; CBR ret]) #;
        #if (ret)
        then (Return ret)
        else Skip
@@ -276,6 +277,7 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
         else
           prev #:= #& (Load chunk next_chunk_ofs)
      ) #;
+    Put "no_fallback returns: " ret #;
     Return ret
   .
 
@@ -331,21 +333,21 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
              (p r1 r2 r3: var): stmt :=
     p #:= Vptr [0: val ; 0: val] #;
     (Put "before init: " p) #;
-    Call "init" [p: expr] #;
+    Call "init" [CBR p] #;
     (Put "after init: " p) #;
-    Call "add_chunk" [p: expr ; big_chunk: expr] #;
+    Call "add_chunk" [CBR p ; CBV big_chunk] #;
     (Put "add_chunk done: " p) #;
 
-    r1 #:= Call "alloc_contiguous" [p: expr ; 7: expr] #;
+    r1 #:= Call "alloc_contiguous" [CBR p ; CBV 7] #;
     (Put "alloc first; should succeed: " r1) #;
 
-    r2 #:= Call "alloc_contiguous" [p: expr ; 7: expr] #;
+    r2 #:= Call "alloc_contiguous" [CBR p ; CBV 7] #;
     (Put "alloc second; should fail: " r2) #;
 
-    Call "add_chunk" [p: expr ; r1: expr] #;
+    Call "add_chunk" [CBR p ; CBV r1] #;
     (Put "add_chunk done" 0) #;
 
-    r3 #:= Call "alloc_contiguous" [p: expr ; 7: expr] #;
+    r3 #:= Call "alloc_contiguous" [CBR p ; CBV 7] #;
     (Put "alloc third; should succeed: " r3) #;
     Skip
   .
