@@ -40,5 +40,6 @@ clean:
 	find . -name "*.v.d" -type f -delete
 	find . -name "*.vo" -type f -delete
 	find . -name "*.glob" -type f -delete
+	git clean -xf .
 # $(MAKE) -f Makefile.coq-rsync clean || true
 	rm -f _CoqProject Makefile.coq Makefile.coq.conf #Makefile.coq-rsync Makefile.coq-rsync.conf

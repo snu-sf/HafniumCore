@@ -24,35 +24,40 @@ Extraction Blacklist List String Int.
 
 Cd "extract".
 
-Separate Extraction
-         (* Lang.eval_stmt (********************** YJ: remove later ********************) *)
-         (* LangTest.load_store_applied (********************** YJ: remove later ********************) *)
-         Lang.eval_program
-         Lang.Vtrue
-         Lang.Vfalse
-         LangTest.LoadStore.program
-         LangTest.Rec.program
-         LangTest.MutRec.program
-         LangTest.Move.program
-         LangTest.CoqCode.program
-         LangTest.Control.program
-         LangTest.MultiCore.programs
-         LangTest.MultiModule.isem
-         LangTest.MultiModuleLocalState.isem
-         (* LangTest.print_val *)
-         (* LangTest.main *)
-         (* LangTest.handle_Event *)
-         (* LangTest.cl2s *)
+Separate Extraction Mpool Lang LangTest.
+(* Recursive Extraction Library Mpool. *)
+(* Recursive Extraction Library Lang. *)
+(* Recursive Extraction Library LangTest. *)
 
-         Mpool.MPOOLSEQ.TEST.program
-         Mpool.MPOOLSEQ.TEST2.program
-         Mpool.MPOOLSEQ.TEST3.program
+(* Separate Extraction *)
+(*          (* Lang.eval_stmt (********************** YJ: remove later ********************) *) *)
+(*          (* LangTest.load_store_applied (********************** YJ: remove later ********************) *) *)
+(*          Lang.eval_program *)
+(*          Lang.Vtrue *)
+(*          Lang.Vfalse *)
+(*          LangTest.LoadStore.program *)
+(*          LangTest.Rec.program *)
+(*          LangTest.MutRec.program *)
+(*          LangTest.Move.program *)
+(*          LangTest.CoqCode.program *)
+(*          LangTest.Control.program *)
+(*          LangTest.MultiCore.programs *)
+(*          LangTest.MultiModule.isem *)
+(*          LangTest.MultiModuleLocalState.isem *)
+(*          (* LangTest.print_val *) *)
+(*          (* LangTest.main *) *)
+(*          (* LangTest.handle_Event *) *)
+(*          (* LangTest.cl2s *) *)
 
-         LangTest.round_robin
-         LangTest.run_till_yield
-         LangTest.my_rr_match
+(*          Mpool.MPOOLSEQ.TEST.program *)
+(*          Mpool.MPOOLSEQ.TEST2.program *)
+(*          Mpool.MPOOLSEQ.TEST3.program *)
+
+(*          LangTest.round_robin *)
+(*          LangTest.run_till_yield *)
+(*          LangTest.my_rr_match *)
 
 (* ITreeDefinition.observe *)
-.
+(* . *)
 
 Cd "..".

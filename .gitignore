@@ -21,6 +21,7 @@ graph.dot
 extract/*.ml
 extract/*.mli
 !extract/main.ml
+extract/main.native
 extract/_build/
 
 main.native
