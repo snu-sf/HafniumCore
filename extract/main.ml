@@ -39,11 +39,15 @@ let print_val =
   let rec go v =
     match v with
     | Vnat n -> print_string ((string_of_int n) ^ " ")
-    | Vptr cts ->
+    | Vptr(paddr, cts) ->
        (* (print_string "[" ; List.iter go cts ; print_string "]") *)
+       let paddr = "(" ^ (match paddr with
+                          | Some paddr -> string_of_int paddr
+                          | None -> "N") ^ ")"
+       in
        if length cts == 0
-       then (print_string ". ")
-       else (print_string "[" ; List.iter go cts ; print_string "]")
+       then (print_string (paddr ^ ". "))
+       else (print_string (paddr ^ "[") ; List.iter go cts ; print_string "]")
   in
   fun v -> go v ; print_endline " "
 

@@ -48,7 +48,7 @@ Module LoadStore.
 
   Definition main x sum: stmt :=
     sum #:= Vnat 0#;
-        x #:= Vptr (repeat (Vnat 0) 3)#;
+        x #:= Vptr None (repeat (Vnat 0) 3)#;
         #put x#;
         (Store x 0 10)#;
         #put x#;

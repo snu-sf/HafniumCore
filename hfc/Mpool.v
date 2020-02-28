@@ -26,7 +26,7 @@ Import Monads.
 Import MonadNotation.
 Local Open Scope monad_scope.
 Local Open Scope string_scope.
-Require Import sflib.
+Require Import Coqlib sflib.
 
 
 (* From HafniumCore *)
@@ -57,7 +57,8 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
 
   Fixpoint chunk_list_wf (chunk_list: val): bool :=
     match chunk_list with
-    | Vptr cts =>
+    | Vptr paddr cts =>
+      is_some paddr &&
       match cts with
       | [] => true
       | _ :: []  => false
@@ -76,7 +77,7 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
 
   Fixpoint mpool_wf (p: val): bool :=
     match p with
-    | Vptr p =>
+    | Vptr _ p =>
       match p with
       | [] => true
       | [chunk_list ; fallback] =>
@@ -392,17 +393,18 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
 
 
 
-  Definition big_chunk (size: nat): val := Vptr (repeat (Vnat 0) (entry_size * size)).
+  Definition big_chunk (paddr: nat) (size: nat): val :=
+    Vptr (Some paddr) (repeat (Vnat 0) (entry_size * size)).
 
   Module TEST.
 
     Definition main
                (p r1 r2 r3: var): stmt :=
-      p #:= Vptr [0: val ; 0: val] #;
+      p #:= Vptr None [0: val ; 0: val] #;
         (Put "before init: " p) #;
         Call "init" [CBR p] #;
         (Put "after init: " p) #;
-        Call "add_chunk" [CBR p ; CBV (big_chunk 10) ; CBV 10] #;
+        Call "add_chunk" [CBR p ; CBV (big_chunk 500 10) ; CBV 10] #;
         (Put "add_chunk done: " p) #;
 
         r1 #:= Call "alloc_contiguous" [CBR p ; CBV 7] #;
@@ -440,11 +442,11 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
 
     Definition main
                (p r1 r2 r3: var): stmt :=
-      p #:= Vptr [0: val ; 0: val] #;
+      p #:= Vptr None [0: val ; 0: val] #;
         (Put "before init: " p) #;
         Call "init" [CBR p] #;
         (Put "after init: " p) #;
-        Call "add_chunk" [CBR p ; CBV (big_chunk 10) ; CBV 10] #;
+        Call "add_chunk" [CBR p ; CBV (big_chunk 500 10) ; CBV 10] #;
         (Put "add_chunk done: " p) #;
 
         r1 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
@@ -486,12 +488,12 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
 
     Definition main
                (p r1 r2 r3: var): stmt :=
-      p #:= Vptr [0: val ; 0: val] #;
+      p #:= Vptr None [0: val ; 0: val] #;
         (Put "before init: " p) #;
         Call "init" [CBR p] #;
         (Put "after init: " p) #;
-        Call "add_chunk" [CBR p ; CBV (big_chunk 10) ; CBV 10] #;
-        Call "add_chunk" [CBR p ; CBV (big_chunk 10) ; CBV 10] #;
+        Call "add_chunk" [CBR p ; CBV (big_chunk 500 10) ; CBV 10] #;
+        Call "add_chunk" [CBR p ; CBV (big_chunk 1500 10) ; CBV 10] #;
         (Put "add_chunk done: " p) #;
 
         r1 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;

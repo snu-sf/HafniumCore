@@ -48,7 +48,7 @@ Definition var : Set := string.
 
 Inductive val: Type :=
 | Vnat (n: nat)
-| Vptr (contents: list val)
+| Vptr (paddr: option nat) (contents: list val)
 (* | Vundef *)
 (* | Vnodef *)
 .
@@ -60,9 +60,12 @@ Definition val_dec (v1 v2: val): {v1 = v2} + {v1 <> v2}.
   decide equality.
   - apply (Nat.eq_dec n n0).
   - apply (list_eq_dec H contents contents0).
+  - destruct paddr, paddr0; decide equality; try apply Nat.eq_dec.
 Defined.
 
-Definition Vnull := Vptr [].
+Definition Vnull := Vptr (Some 0) [].
+(* YJ: (Some 0) or None?
+Some 0 로 하면 처음에 ptable_buf 넣는거는 Vnull 이 아님을 (i.e. paddr <> 0) 알아야 함 *)
 (* YJ: is it really the same with nodef? or do we need explicit nodef? *)
 Definition Vnodef := Vnull.
 
@@ -74,9 +77,14 @@ Definition Vfalse := Vnat 0.
 Definition is_true (v : val) : bool :=
   match v with
   | Vnat n => if (n =? 0)%nat then false else true
-  | Vptr (_ :: _) => true (* nonnull pointer *)
   (* YJ: THIS IS TEMPORARY HACKING *)
-  | Vptr _ => false (* null pointer *)
+  (* | Vptr _ (_ :: _) => true (* nonnull pointer *) *)
+  (* | Vptr _ _ => false (* null pointer *) *)
+  | Vptr paddr _ =>
+    match paddr with
+    | Some O => false
+    | _ => true
+    end
   end
 .
 
@@ -317,6 +325,9 @@ Section Denote.
 
   Variable ctx: program.
 
+  From ExtLib Require Import Structures.Applicative.
+  Print Instances Applicative.
+
   Fixpoint denote_expr (e : expr) : itree eff val :=
     match e with
     | Var v     => trigger (GetVar v)
@@ -351,7 +362,7 @@ Section Denote.
                   end
     | Load x ofs => x <- trigger (GetVar x) ;; ofs <- denote_expr ofs ;;
                       match x, ofs with
-                      | Vptr cts, Vnat ofs =>
+                      | Vptr _ cts, Vnat ofs =>
                         match nth_error cts ofs with
                         | Some v => ret v
                         | _ => triggerNB "expr-load1"
@@ -390,13 +401,13 @@ Section Denote.
       in
       mapT (fun '(n, v) => trigger (SetVar n v)) nvs ;;
       ret retv
-    | Ampersand e => v <- (denote_expr e) ;; Ret (Vptr [v])
+    | Ampersand e => v <- (denote_expr e) ;; Ret (Vptr None [v])
     | SubPointerFrom p from =>
       p <- (denote_expr p) ;; from <- (denote_expr from) ;;
         match p with
-        | Vptr cts =>
+        | Vptr paddr cts =>
           match from with
-          | Vnat from => Ret (Vptr (skipn from cts))
+          | Vnat from => Ret (Vptr (liftA (Nat.add from) paddr) (skipn from cts))
           | _ => triggerNB "expr-subpointer1"
           end
         | _ => triggerNB "expr-subpointer2"
@@ -404,9 +415,9 @@ Section Denote.
     | SubPointerTo p to =>
       p <- (denote_expr p) ;; to <- (denote_expr to) ;;
         match p with
-        | Vptr cts =>
+        | Vptr paddr cts =>
           match to with
-          | Vnat to => Ret (Vptr (firstn to cts))
+          | Vnat to => Ret (Vptr paddr (firstn to cts))
           | _ => triggerNB "expr-subpointer1"
           end
         | _ => triggerNB "expr-subpointer2"
@@ -431,7 +442,7 @@ Section Denote.
         (* end *)
     | GetLen e => e <- denote_expr e ;;
                     match e with
-                    | Vptr cts => Ret ((length cts): val)
+                    | Vptr _ cts => Ret ((length cts): val)
                     | _ => triggerNB "expr-getlen"
                     end
     end.
@@ -509,9 +520,9 @@ Section Denote.
     | Store x ofs e => ofs <- denote_expr ofs ;; e <- denote_expr e ;;
                            v <- trigger (GetVar x) ;;
                            match ofs, v with
-                           | Vnat ofs, Vptr cts0 =>
+                           | Vnat ofs, Vptr paddr cts0 =>
                              cts1 <- (unwrapN (update_err cts0 ofs e)) ;;
-                                  trigger (SetVar x (Vptr cts1))
+                                  trigger (SetVar x (Vptr paddr cts1))
                            | _, _ => triggerNB "stmt-store"
                            end ;;
                            ret (CNormal, Vnodef)

@@ -50,3 +50,17 @@ Notation unwrap :=
 (*   | _ => default *)
 (*   end *)
 (* . *)
+
+Definition is_some X (x: option X): bool :=
+  match x with
+  | Some _ => true
+  | _ => false
+  end
+.
+
+Definition is_none X (x: option X): bool :=
+  match x with
+  | Some _ => false
+  | _ => true
+  end
+.
