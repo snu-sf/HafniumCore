@@ -80,6 +80,16 @@ Definition is_true (v : val) : bool :=
   end
 .
 
+Definition bool_to_val (b: bool): val :=
+  match b with
+  | true => Vtrue
+  | false => Vfalse
+  end
+.
+
+Coercion bool_to_val: bool >-> val.
+
+
 
 (** Expressions are made of variables, constant literals, and arithmetic operations. *)
 Inductive expr : Type :=
@@ -209,6 +219,9 @@ Module ImpNotations.
 
   Notation "#& e" :=
     (Ampersand e) (at level 60, e at level 50): stmt_scope.
+
+  Notation "#* e" :=
+    (Load e 0) (at level 40, e at level 50): stmt_scope.
 
 End ImpNotations.
 

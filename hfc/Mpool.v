@@ -39,17 +39,6 @@ Local Open Scope stmt_scope.
 
 Set Implicit Arguments.
 
-Notation "#* e" :=
-  (Load e 0) (at level 40, e at level 50): stmt_scope.
-
-Definition bool_to_val (b: bool): val :=
-  match b with
-  | true => Vtrue
-  | false => Vfalse
-  end
-.
-
-Coercion bool_to_val: bool >-> val.
 
 
 
