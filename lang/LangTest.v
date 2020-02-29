@@ -354,8 +354,7 @@ Module MultiModuleLocalState.
   | SetM (k: nat) (v: nat): memoizeE unit
   .
   Definition f_sem: CallExternalE ~> itree (CallExternalE +' Event +' memoizeE) :=
-    (fun T (c: CallExternalE T) =>
-       let '(CallExternal func_name args) := c in
+    (fun _ '(CallExternal func_name args) =>
        match args with
        | [Vnat k] =>
          v <- trigger (GetM k) ;;

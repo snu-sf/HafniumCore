@@ -263,7 +263,7 @@ Variant Event: Type -> Type :=
 | ESyscall
     (name: string)
     (msg: string)
-    (arg: list val): Event val
+    (args: list val): Event val
 | EYield: Event unit
 .
 
@@ -931,7 +931,8 @@ Inductive unit1: Type -> Type :=
 
 Definition program_to_ModSem (p: program): ModSem :=
   mk_ModSem
-    (fun s => in_dec Strings.String.string_dec s (List.map fst p))
+    (* (fun s => in_dec Strings.String.string_dec s (List.map fst p)) *)
+    (fun s => existsb (string_dec s) (List.map fst p))
     tt
     void1
     (fun T e _ => ITree.map (fun t => (tt, t)) (Handler.empty _ e))
