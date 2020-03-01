@@ -29,6 +29,12 @@ open Sum
 open Traversable
 open Sflib
 
+module Nat = struct
+  include Nat
+  let rec to_int = function | O -> 0 | S n -> succ (to_int n)
+  let rec of_int n = assert(n >= 0); if(n == 0) then O else S (of_int (pred n))
+end
+
 let shuffle: 'a list -> 'a list = fun xs ->
   let xis = List.map (fun x -> (Random.bits (), x)) xs in
   let yis = List.sort (fun x0 x1 -> Stdlib.compare (fst x0) (fst x1)) xis in
@@ -39,14 +45,14 @@ let cl2s = fun cl -> String.concat "" (List.map (String.make 1) cl)
 let print_val =
   let rec go v =
     match v with
-    | Vnat n -> print_string ((string_of_int n) ^ " ")
+    | Vnat n -> print_string ((string_of_int (Nat.to_int n)) ^ " ")
     | Vptr(paddr, cts) ->
        (* (print_string "[" ; List.iter go cts ; print_string "]") *)
        let paddr = "(" ^ (match paddr with
-                          | Some paddr -> string_of_int paddr
+                          | Some paddr -> string_of_int (Nat.to_int paddr)
                           | None -> "N") ^ ")"
        in
-       if length cts == 0
+       if length cts == Nat.of_int 0
        then (print_string (paddr ^ ". "))
        else (print_string (paddr ^ "[") ; List.iter go cts ; print_string "]")
   in
@@ -60,7 +66,7 @@ let handle_Event = fun e k ->
   | ESyscall ('p'::[], msg, v::[]) ->
      print_string (cl2s msg) ; print_val v ; k (Obj.magic ())
   | ESyscall ('g'::[], _,   []) ->
-     let x = read_int() in k (Obj.magic (Vnat x))
+     let x = read_int() in k (Obj.magic (Vnat (Nat.of_int x)))
   | ESyscall (cl,      msg, vs) ->
      print_string (cl2s msg) ; print_endline (cl2s cl) ;
 (* print_val (List.nth vs 0) ; *)

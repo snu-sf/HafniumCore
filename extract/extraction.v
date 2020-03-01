@@ -7,7 +7,7 @@ Require Import MpoolSeq MpoolConcur.
 
 Require Import ExtrOcamlBasic.
 Require Import ExtrOcamlString.
-Require Import ExtrOcamlNatInt.
+(* Require Import ExtrOcamlNatInt. *)
 
 (* Avoid name clashes *)
 Extraction Blacklist List String Int.
