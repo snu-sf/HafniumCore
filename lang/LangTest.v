@@ -280,6 +280,32 @@ End Control.
 
 
 
+Module DoubleReturn.
+
+  Definition f : stmt :=
+    Return 0 #; Return 1
+  .
+
+  Definition f_function: function := mk_function [] f.
+
+  Definition main r :=
+    r #:= (Call "f" []) #;
+    #if ! (r == 0) then Assume else Skip #;
+    Skip
+  .
+
+  Definition main_function: function :=
+    mk_function [] (main "local0")
+  .
+
+  Definition program: program := [("main", main_function) ;
+                                    ("f", f_function)].
+
+End DoubleReturn.
+
+
+
+
 Module MultiCore.
 
   Definition main (n: nat): stmt :=

@@ -27,6 +27,7 @@ Separate Extraction
          LangTest.Move.program
          LangTest.CoqCode.program
          LangTest.Control.program
+         LangTest.DoubleReturn.program
          LangTest.MultiCore.programs
          LangTest.MultiModule.isem
          LangTest.MultiModuleLocalState.isem
@@ -35,9 +36,10 @@ Separate Extraction
          (* LangTest.handle_Event *)
          (* LangTest.cl2s *)
 
-         MpoolSeq.MPOOLSEQ.TEST.program
-         MpoolSeq.MPOOLSEQ.TEST2.program
-         MpoolSeq.MPOOLSEQ.TEST3.program
+         MpoolSeq.TEST.TEST1.program
+         MpoolSeq.TEST.TEST2.program
+         MpoolSeq.TEST.TEST3.program
+         MpoolSeq.TEST.TEST4.program
 
          LangTest.round_robin
          LangTest.run_till_yield

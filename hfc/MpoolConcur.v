@@ -258,6 +258,17 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
     Skip
   .
 
+  (* void mpool_init_with_fallback(struct mpool *p, struct mpool *fallback) *)
+  (* { *)
+  (* 	mpool_init(p, fallback->entry_size); *)
+  (* 	p->fallback = fallback; *)
+  (* } *)
+
+  Definition init_with_fallback (p fallback: var): stmt :=
+    Call "init" [CBR p] #;
+    (Store p fallback_ofs fallback)
+  .
+
   (* void *mpool_alloc_contiguous(struct mpool *p, size_t count, size_t align) *)
   (* { *)
   (*   do { *)
@@ -354,8 +365,9 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
            (Put "If1-limit: " cur_ofs) #;
            #if count == cur_ofs
             then (
+                ret #:= (SubPointerTo cur (count * entry_size)) #;
                 cur #:= (Load cur next_chunk_ofs) #;
-                Return (SubPointerTo cur (count * entry_size))
+                Return ret
               )
             else (
                 new_cur #:= (SubPointerFrom cur (count * entry_size)) #;
@@ -419,6 +431,8 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
 
   Definition initF: function :=
     mk_function ["p"] (init "p").
+  Definition init_with_fallbackF: function :=
+    mk_function ["p" ; "fb"] (init_with_fallback "p" "fb").
   Definition alloc_contiguousF: function :=
     mk_function ["p" ; "count"] (alloc_contiguous "p" "count" "ret" "next" "nextp").
   Definition alloc_contiguous_no_fallbackF: function :=

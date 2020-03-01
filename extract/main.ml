@@ -151,26 +151,20 @@ let main =
    * print_endline "-----------------------------------" ;
    * run (MultiModuleLocalState.isem) ; *)
 
-  print_endline "-----------------------------------" ;
-  run (eval_program MpoolSeq.MPOOLSEQ.TEST.program) ;
-  print_endline "" ;
-  print_endline "" ;
-  print_endline "" ;
-  print_endline "" ;
+  print_endline "-----------------------------------------------------------" ;
+  run (eval_program DoubleReturn.program) ;
 
-  print_endline "-----------------------------------" ;
-  run (eval_program MpoolSeq.MPOOLSEQ.TEST2.program) ;
-  print_endline "" ;
-  print_endline "" ;
-  print_endline "" ;
-  print_endline "" ;
+  (* print_endline "-----------------------------------------------------------" ;
+   * run (eval_program MpoolSeq.TEST.TEST1.program) ; *)
 
-  print_endline "-----------------------------------" ;
-  run (eval_program MpoolSeq.MPOOLSEQ.TEST3.program) ;
-  print_endline "" ;
-  print_endline "" ;
-  print_endline "" ;
-  print_endline "" ;
+  print_endline "-----------------------------------------------------------" ;
+  run (eval_program MpoolSeq.TEST.TEST2.program) ;
+
+  print_endline "-----------------------------------------------------------" ;
+  run (eval_program MpoolSeq.TEST.TEST3.program) ;
+
+  print_endline "-----------------------------------------------------------" ;
+  run (eval_program MpoolSeq.TEST.TEST4.program) ;
   (* print_endline "-----------------------------------" ;
    * my_rr (List.map eval_program Concur.programs) ; *)
   ()
