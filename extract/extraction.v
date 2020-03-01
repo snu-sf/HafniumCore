@@ -12,27 +12,12 @@ Require Import ExtrOcamlNatInt.
 (* Avoid name clashes *)
 Extraction Blacklist List String Int.
 
-(* Needed in Coq 8.4 to avoid problems with Function definitions. *)
-(* Set Extraction AccessOpaque. *)
-
-(* Go! *)
-
-
-
-(* Extraction "Lang.ml" load_store_applied eval_stmt stmt_Assume print_val main handle_Event *)
-(*            cl2s. *)
-
 Cd "extract".
 
+(*** TODO: I just want to write as below, but it does NOT work!!!!! ***)
 (* Separate Extraction MpoolSeq MpoolConcur Lang LangTest. *)
 
-(* Recursive Extraction Library Mpool. *)
-(* Recursive Extraction Library Lang. *)
-(* Recursive Extraction Library LangTest. *)
-
 Separate Extraction
-         (* Lang.eval_stmt (********************** YJ: remove later ********************) *)
-         (* LangTest.load_store_applied (********************** YJ: remove later ********************) *)
          Lang.eval_program
          Lang.Vtrue
          Lang.Vfalse
