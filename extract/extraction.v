@@ -3,7 +3,7 @@ Require Extraction.
 (* From HafniumCore *)
 (* YJ: Having some makefile problem. (dependency checking) need to solve that !! *)
 Require Import Lang LangTest.
-Require Import Mpool.
+Require Import MpoolSeq MpoolConcur.
 
 Require Import ExtrOcamlBasic.
 Require Import ExtrOcamlString.
@@ -24,7 +24,7 @@ Extraction Blacklist List String Int.
 
 Cd "extract".
 
-Separate Extraction Mpool Lang LangTest.
+Separate Extraction MpoolSeq MpoolConcur Lang LangTest.
 (* Recursive Extraction Library Mpool. *)
 (* Recursive Extraction Library Lang. *)
 (* Recursive Extraction Library LangTest. *)
