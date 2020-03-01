@@ -445,3 +445,213 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
 
 End MPOOLCONCUR.
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Module TEST.
+
+  Include MPOOLCONCUR.
+
+  Definition big_chunk (paddr: nat) (size: nat): val :=
+    Vptr (Some paddr) (repeat (Vnat 0) (entry_size * size)).
+
+  Module TEST2.
+
+    Definition main
+               (p r1 r2 r3: var): stmt :=
+      p #:= Vptr None [0: val ; 0: val] #;
+        (* (Put "before init: " p) #; *)
+        Call "init" [CBR p] #;
+        (* (Put "after init: " p) #; *)
+        Call "add_chunk" [CBR p ; CBV (big_chunk 500 10) ; CBV 10] #;
+        (* (Put "add_chunk done: " p) #; *)
+
+        r1 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
+        (* (Put "alloc first; should succeed: " r1) #; *)
+        (* (Put "alloc first; p: " p) #; *)
+        #if r1 then Skip else Assume #;
+
+        r2 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
+        (* (Put "alloc second; should fail: " r2) #; *)
+        (* (Put "alloc second; p: " p) #; *)
+        #if r2 then Assume else Skip #;
+
+        Call "add_chunk" [CBR p ; CBV r1 ; CBV 7] #;
+        (* (Put "add_chunk done" p) #; *)
+
+        r3 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
+        (* (Put "alloc third; should succeed: " r3) #; *)
+        (* (Put "alloc third; p: " p) #; *)
+        #if r3 then Skip else Assume #;
+
+
+        Put "Test2 Passed" Vnull #;
+        Skip
+    .
+    Definition mainF: function := mk_function [] (main "p" "r1" "r2" "r3").
+
+    Definition program: program :=
+      [
+        ("main", mainF) ;
+          ("init", initF) ;
+          ("alloc_contiguous2", alloc_contiguousF) ;
+          ("alloc_contiguous_no_fallback2", alloc_contiguous_no_fallbackF) ;
+          ("add_chunk", add_chunkF)
+      ].
+
+    Definition isem: itree Event unit :=
+      eval_multimodule [program_to_ModSem program ; LOCK.modsem].
+
+  End TEST2.
+
+
+
+
+
+
+
+  Module TEST3.
+
+    Definition main
+               (p r1 r2 r3: var): stmt :=
+      p #:= Vptr None [0: val ; 0: val] #;
+        (* (Put "before init: " p) #; *)
+        Call "init" [CBR p] #;
+        (* (Put "after init: " p) #; *)
+        Call "add_chunk" [CBR p ; CBV (big_chunk 500 10) ; CBV 10] #;
+        Call "add_chunk" [CBR p ; CBV (big_chunk 1500 10) ; CBV 10] #;
+        (* (Put "add_chunk done: " p) #; *)
+
+        r1 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
+        (* (Put "alloc first; should succeed: " r1) #; *)
+        (* (Put "alloc first; p: " p) #; *)
+        #if r1 then Skip else Assume #;
+
+        r2 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
+        (* (Put "alloc second; should succeed: " r2) #; *)
+        (* (Put "alloc second; p: " p) #; *)
+        #if r2 then Skip else Assume #;
+
+        Put "Test3 Passed" Vnull #;
+        Skip
+    .
+    Definition mainF: function := mk_function [] (main "p" "r1" "r2" "r3").
+
+    Definition program: program :=
+      [
+        ("main", mainF) ;
+          ("init", initF) ;
+          ("alloc_contiguous2", alloc_contiguousF) ;
+          ("alloc_contiguous_no_fallback2", alloc_contiguous_no_fallbackF) ;
+          ("add_chunk", add_chunkF)
+      ].
+
+    Definition isem: itree Event unit :=
+      eval_multimodule [program_to_ModSem program ; LOCK.modsem].
+
+  End TEST3.
+
+
+
+
+
+  Module TEST4.
+
+    Definition main
+               (p0 p1 p2 r: var): stmt :=
+      (* p0 #:= Vptr None [0: val ; 0: val] #; *)
+      (* p1 #:= Vptr None [0: val ; 0: val] #; *)
+      (* p2 #:= Vptr None [0: val ; 0: val] #; *)
+      (* Call "init" [CBR p2] #; *)
+      (* Call "init_with_fallback" [CBR p1 ; CBV p2] #; *)
+      (* Call "init_with_fallback" [CBR p0 ; CBV p1] #; *)
+      
+      (* Call "add_chunk" [CBR p0 ; CBV (big_chunk 500  5 ) ; CBV  5] #; *)
+      (* Call "add_chunk" [CBR p1 ; CBV (big_chunk 1500 15) ; CBV 15] #; *)
+      (* Call "add_chunk" [CBR p2 ; CBV (big_chunk 2500 10) ; CBV 10] #; *)
+
+      (* r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 5] #; *)
+      (* #if r then Skip else Assume #; *)
+      (* Call "alloc_contiguous2" [CBR p0 ; CBV 10] #; *)
+      (* #if r then Skip else Assume #; *)
+      (* Call "alloc_contiguous2" [CBR p0 ; CBV 15] #; *)
+      (* #if r then Assume else Skip #; *)
+      (* Call "alloc_contiguous2" [CBR p0 ; CBV 5] #; *)
+      (* #if r then Skip else Assume #; *)
+      (* Call "alloc_contiguous2" [CBR p0 ; CBV 10] #; *)
+      (* #if r then Skip else Assume #; *)
+      (* Call "alloc_contiguous2" [CBR p0 ; CBV 5] #; *)
+      (* #if r then Skip else Assume #; *)
+      (* Skip *)
+      p0 #:= Vptr None [0: val ; 0: val] #;
+      p1 #:= Vptr None [0: val ; 0: val] #;
+      p2 #:= Vptr None [0: val ; 0: val] #;
+      Call "init" [CBR p2] #;
+      Call "add_chunk" [CBR p2 ; CBV (big_chunk 2500 2) ; CBV 2] #;
+
+      Call "init_with_fallback" [CBR p1 ; CBV p2] #;
+      Call "add_chunk" [CBR p1 ; CBV (big_chunk 1500 3) ; CBV 3] #;
+
+      Call "init_with_fallback" [CBR p0 ; CBV p1] #;
+      Call "add_chunk" [CBR p0 ; CBV (big_chunk 500  1) ; CBV 1] #;
+      
+
+      r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 1] #;
+      #if r then Skip else Assume #;
+      r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 2] #;
+      #if r then Skip else Assume #;
+      r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 3] #;
+      #if r then Assume else Skip #;
+      r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 2] #;
+      #if r then Skip else Assume #;
+      r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 1] #;
+      #if r then Skip else Assume #;
+      r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 1] #;
+      #if r then Assume else Skip #;
+      Put "Test4 Passed" Vnull #;
+      Skip
+    .
+    Definition mainF: function := mk_function [] (main "p0" "p1" "p2" "r").
+
+    Definition program: program :=
+      [
+        ("main", mainF) ;
+          ("init", initF) ;
+          ("init_with_fallback", init_with_fallbackF) ;
+          ("alloc_contiguous2", alloc_contiguousF) ;
+          ("alloc_contiguous_no_fallback2", alloc_contiguous_no_fallbackF) ;
+          ("add_chunk", add_chunkF)
+      ].
+
+    Definition isem: itree Event unit :=
+      eval_multimodule [program_to_ModSem program ; LOCK.modsem].
+
+  End TEST4.
+
+
+
+End TEST.
+
+
+
+
