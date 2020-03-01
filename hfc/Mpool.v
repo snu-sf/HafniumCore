@@ -142,7 +142,7 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
     #while Vtrue
      do (
        Put "looping alloc_contiguous" Vnull #;
-       ret #:= (Call "alloc_contiguous_no_fallback" [CBR p ; CBV count]) #;
+       ret #:= (ICall "alloc_contiguous_no_fallback" [CBR p ; CBV count]) #;
        #if (ret)
        then (Return ret)
        else Skip
@@ -163,14 +163,14 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
      else Guarantee
     #;
     next #:= (Load p chunk_list_ofs) #;
-    ret #:= (Call "alloc_contiguous_no_fallback2" [CBR next ; CBV count]) #;
+    ret #:= (ICall "alloc_contiguous_no_fallback2" [CBR next ; CBV count]) #;
     Store p chunk_list_ofs next #;
     #if (ret)
      then (Return ret)
      else (
          nextp #:= (Load p fallback_ofs) #;
          #if (! nextp) then Return Vnull else Skip #;
-         ret #:= (Call "alloc_contiguous2" [CBR nextp ; CBV count]) #;
+         ret #:= (ICall "alloc_contiguous2" [CBR nextp ; CBV count]) #;
          (Store p fallback_ofs nextp) #;
          Return ret
        )
@@ -341,7 +341,7 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
      else (
          (Put "Else1-limit: " cur_ofs) #;
          next #:= (Load cur next_chunk_ofs) #;
-         ret #:= (Call "alloc_contiguous_no_fallback2" [CBR next ; CBV count]) #;
+         ret #:= (ICall "alloc_contiguous_no_fallback2" [CBR next ; CBV count]) #;
          Store cur next_chunk_ofs next #;
          Return ret
          )
@@ -411,23 +411,23 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
                (p r1 r2 r3: var): stmt :=
       p #:= Vptr [0: val ; 0: val] #;
         (Put "before init: " p) #;
-        Call "init" [CBR p] #;
+        ICall "init" [CBR p] #;
         (Put "after init: " p) #;
-        Call "add_chunk" [CBR p ; CBV (big_chunk 10) ; CBV 10] #;
+        ICall "add_chunk" [CBR p ; CBV (big_chunk 10) ; CBV 10] #;
         (Put "add_chunk done: " p) #;
 
-        r1 #:= Call "alloc_contiguous" [CBR p ; CBV 7] #;
+        r1 #:= ICall "alloc_contiguous" [CBR p ; CBV 7] #;
         (Put "alloc first; should succeed: " r1) #;
         (Put "alloc first; p: " p) #;
 
-        r2 #:= Call "alloc_contiguous" [CBR p ; CBV 7] #;
+        r2 #:= ICall "alloc_contiguous" [CBR p ; CBV 7] #;
         (Put "alloc second; should fail: " r2) #;
         (Put "alloc second; p: " p) #;
 
-        Call "add_chunk" [CBR p ; CBV r1 ; CBV 7] #;
+        ICall "add_chunk" [CBR p ; CBV r1 ; CBV 7] #;
         (Put "add_chunk done" p) #;
 
-        r3 #:= Call "alloc_contiguous" [CBR p ; CBV 7] #;
+        r3 #:= ICall "alloc_contiguous" [CBR p ; CBV 7] #;
         (Put "alloc third; should succeed: " r3) #;
         (Put "alloc third; p: " p) #;
         Skip
@@ -453,23 +453,23 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
                (p r1 r2 r3: var): stmt :=
       p #:= Vptr [0: val ; 0: val] #;
         (Put "before init: " p) #;
-        Call "init" [CBR p] #;
+        ICall "init" [CBR p] #;
         (Put "after init: " p) #;
-        Call "add_chunk" [CBR p ; CBV (big_chunk 10) ; CBV 10] #;
+        ICall "add_chunk" [CBR p ; CBV (big_chunk 10) ; CBV 10] #;
         (Put "add_chunk done: " p) #;
 
-        r1 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
+        r1 #:= ICall "alloc_contiguous2" [CBR p ; CBV 7] #;
         (Put "alloc first; should succeed: " r1) #;
         (Put "alloc first; p: " p) #;
 
-        r2 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
+        r2 #:= ICall "alloc_contiguous2" [CBR p ; CBV 7] #;
         (Put "alloc second; should fail: " r2) #;
         (Put "alloc second; p: " p) #;
 
-        Call "add_chunk" [CBR p ; CBV r1 ; CBV 7] #;
+        ICall "add_chunk" [CBR p ; CBV r1 ; CBV 7] #;
         (Put "add_chunk done" p) #;
 
-        r3 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
+        r3 #:= ICall "alloc_contiguous2" [CBR p ; CBV 7] #;
         (Put "alloc third; should succeed: " r3) #;
         (Put "alloc third; p: " p) #;
         Skip
@@ -499,17 +499,17 @@ Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
                (p r1 r2 r3: var): stmt :=
       p #:= Vptr [0: val ; 0: val] #;
         (Put "before init: " p) #;
-        Call "init" [CBR p] #;
+        ICall "init" [CBR p] #;
         (Put "after init: " p) #;
-        Call "add_chunk" [CBR p ; CBV (big_chunk 10) ; CBV 10] #;
-        Call "add_chunk" [CBR p ; CBV (big_chunk 10) ; CBV 10] #;
+        ICall "add_chunk" [CBR p ; CBV (big_chunk 10) ; CBV 10] #;
+        ICall "add_chunk" [CBR p ; CBV (big_chunk 10) ; CBV 10] #;
         (Put "add_chunk done: " p) #;
 
-        r1 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
+        r1 #:= ICall "alloc_contiguous2" [CBR p ; CBV 7] #;
         (Put "alloc first; should succeed: " r1) #;
         (Put "alloc first; p: " p) #;
 
-        r2 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
+        r2 #:= ICall "alloc_contiguous2" [CBR p ; CBV 7] #;
         (Put "alloc second; should succeed: " r2) #;
         (Put "alloc second; p: " p) #;
 

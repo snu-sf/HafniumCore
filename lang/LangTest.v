@@ -95,7 +95,7 @@ Module Rec.
   Definition f x y r: stmt :=
     (#if x
       then (y #:= (x - 1) #;
-              r #:= (Call "f" [CBV y]) #;
+              r #:= (ICall "f" [CBV y]) #;
               r #:= r + x)
       else (r #:= 0)
     )
@@ -105,15 +105,15 @@ Module Rec.
 
   Definition f_function: function := mk_function ["x"] (f "x" "local0" "local1").
 
-  Definition main x r: stmt :=
+  Definition main call x r: stmt :=
     x #:= 10 #;
-      r #:= (Call "f" [CBV x]) #;
+      r #:= (call "f" [CBV x]) #;
       #put r
   .
 
-  Definition main_function: function := mk_function [] (main "local0" "local1").
+  Definition main_function call: function := mk_function [] (main call "local0" "local1").
 
-  Definition program: program := [("main", main_function) ;
+  Definition program: program := [("main", main_function ICall) ;
                                     ("f", f_function)].
 
 End Rec.
@@ -125,7 +125,7 @@ Module MutRec.
   Definition f x y r: stmt :=
     (#if x
       then (y #:= (x - 1) #;
-              r #:= (Call "g" [CBV y]) #;
+              r #:= (ICall "g" [CBV y]) #;
               r #:= r + x)
       else (r #:= 0)
     )
@@ -136,7 +136,7 @@ Module MutRec.
   Definition g x y r: stmt :=
     (#if x
       then (y #:= (x - 1) #;
-              r #:= (Call "f" [CBV y]) #;
+              r #:= (ICall "f" [CBV y]) #;
               r #:= r + x)
       else (r #:= 0)
     )
@@ -147,7 +147,7 @@ Module MutRec.
   Definition f_function: function := mk_function ["x"] (f "x" "local0" "local1").
   Definition g_function: function := mk_function ["x"] (g "x" "local0" "local1").
 
-  Definition program: program := [("main", Rec.main_function) ;
+  Definition program: program := [("main", Rec.main_function ICall) ;
                                     ("f", f_function) ;
                                     ("g", g_function)].
 End MutRec.
@@ -161,7 +161,7 @@ Module Move.
     (#if x
       then (y #:= (x - 1) #;
               (* Put "before call" accu #; *)
-              unused #:= (Call "f" [CBV y ; CBR accu]) #;
+              unused #:= (ICall "f" [CBV y ; CBR accu]) #;
               (* Put "after call" accu #; *)
               accu #:= accu + x #;
                                 Skip
@@ -176,7 +176,7 @@ Module Move.
   Definition main x accu unused: stmt :=
     x #:= 10 #;
       accu #:= 1000 #;
-      unused #:= (Call "f" [CBV x ; CBR accu]) #;
+      unused #:= (ICall "f" [CBV x ; CBR accu]) #;
       #put accu
   .
 
@@ -261,10 +261,10 @@ Module Control.
   Definition f_function: function := mk_function ["ctrl"] (f "ctrl" "local0" "local1").
 
   Definition main r: stmt :=
-    r #:= (Call "f" [CBV 0]) #; #if r == 0 then Skip else Assume #;
-    r #:= (Call "f" [CBV 1]) #; #if r == 10 then Skip else Assume #;
-    r #:= (Call "f" [CBV 2]) #; #if r == 111 then Skip else Assume #;
-    r #:= (Call "f" [CBV 3]) #; #if r == 10110 then Skip else Assume #;
+    r #:= (ICall "f" [CBV 0]) #; #if r == 0 then Skip else Assume #;
+    r #:= (ICall "f" [CBV 1]) #; #if r == 10 then Skip else Assume #;
+    r #:= (ICall "f" [CBV 2]) #; #if r == 111 then Skip else Assume #;
+    r #:= (ICall "f" [CBV 3]) #; #if r == 10110 then Skip else Assume #;
     Skip
   .
 
@@ -312,7 +312,7 @@ Module MultiModule.
   Definition f x y r: stmt :=
     (#if x
       then (y #:= (x - 1) #;
-              r #:= (Call "g" [CBV y]) #;
+              r #:= (ECall "g" [CBV y]) #;
               r #:= r + x)
       else (r #:= 0)
     )
@@ -323,7 +323,7 @@ Module MultiModule.
   Definition g x y r: stmt :=
     (#if x
       then (y #:= (x - 1) #;
-              r #:= (Call "f" [CBV y]) #;
+              r #:= (ECall "f" [CBV y]) #;
               r #:= r + x)
       else (r #:= 0)
     )
@@ -334,7 +334,7 @@ Module MultiModule.
   Definition f_function: function := mk_function ["x"] (f "x" "local0" "local1").
   Definition g_function: function := mk_function ["x"] (g "x" "local0" "local1").
 
-  Definition main_program: program := [("main", Rec.main_function)].
+  Definition main_program: program := [("main", Rec.main_function ECall)].
   Definition f_program: program := [("f", f_function)].
   Definition g_program: program := [("g", g_function)].
 
@@ -403,7 +403,7 @@ Module MultiModuleLocalState.
   Definition g x y r: stmt :=
     (#if x
       then (y #:= (x - 1) #;
-              r #:= (Call "f" [CBV y]) #;
+              r #:= (ECall "f" [CBV y]) #;
               r #:= r + x)
       else (r #:= 0)
     )
@@ -414,28 +414,28 @@ Module MultiModuleLocalState.
   Definition g_program: program := [("g", g_function)].
 
   Definition main r: stmt :=
-      r #:= (Call "f" [CBV 10]) #;
+      r #:= (ECall "f" [CBV 10]) #;
       #put r #;
 
       #put 99999 #;
       #put 99999 #;
       #put 99999 #;
 
-      r #:= (Call "f" [CBV 10]) #;
+      r #:= (ECall "f" [CBV 10]) #;
       #put r #;
 
       #put 99999 #;
       #put 99999 #;
       #put 99999 #;
 
-      r #:= (Call "f" [CBV 5]) #;
+      r #:= (ECall "f" [CBV 5]) #;
       #put r #;
 
       #put 99999 #;
       #put 99999 #;
       #put 99999 #;
 
-      r #:= (Call "f" [CBV 8]) #;
+      r #:= (ECall "f" [CBV 8]) #;
       #put r #;
 
       Skip

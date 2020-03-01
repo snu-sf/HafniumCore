@@ -80,66 +80,380 @@ Definition is_true (v : val) : bool :=
   end
 .
 
+(* ========================================================================== *)
+(** ** Semantics *)
 
-(** Expressions are made of variables, constant literals, and arithmetic operations. *)
-Inductive expr : Type :=
-| Var (_ : var)
-| Lit (_ : val)
-| Plus  (_ _ : expr)
-| Minus (_ _ : expr)
-| Mult  (_ _ : expr)
-| Div   (_ _ : expr)
-| Equal (_ _: expr)
-| Neg (_: expr)
-| LE (_ _: expr)
-| Load (_: var) (_: expr)
-| CoqCode (_: list expr) (P: list val -> val)
-| Put (msg: string) (e: expr)
-| Get
-| Call (func_name: string) (params: list (var + expr))
-| Ampersand (_: expr)
-| GetLen (_: expr)
-(* YJ: Vptr에 addr: nat 추가하면?
+(** _Imp_ produces effects by manipulating its variables.  To account for this,
+    we define a type of _external interactions_ [ImpState] modeling reads and
+    writes to global variables.
+
+    A read, [GetVar], takes a variable as an argument and expects the
+    environment to answer with a val, hence defining an event of type
+    [ImpState val].
+
+    Similarly, [SetVar] is a write event parameterized by both a variable and a
+    val to be written, and defines an event of type [ImpState unit], no
+    informative answer being expected from the environment.  *)
+
+Variant ImpState : Type -> Type :=
+| GetVar (x : var) : ImpState val
+| SetVar (x : var) (v : val) : ImpState unit
+| PushEnv: ImpState unit
+| PopEnv: ImpState unit
+(* | StoreVar (x: var) (ofs: nat) (v: val): ImpState bool *)
+.
+
+Variant Event: Type -> Type :=
+| ENB (msg: string): Event void
+| EUB (msg: string): Event void
+| ESyscall
+    (name: string)
+    (msg: string)
+    (arg: list val): Event val
+| EYield: Event unit
+.
+
+(* YJ: Will be consumed internally *)
+Variant CallInternalE: Type -> Type :=
+| CallInternal (func_name: string) (args: list val): CallInternalE (val * list val)
+.
+
+Variant CallExternalE: Type -> Type :=
+| CallExternal (func_name: string) (args: list val): CallExternalE (val * list val)
+.
+
+Definition triggerUB {E A} `{Event -< E} (msg: string): itree E A :=
+  vis (EUB msg) (fun v => match v: void with end)
+.
+Definition triggerNB {E A} `{Event -< E} (msg: string) : itree E A :=
+  vis (ENB msg) (fun v => match v: void with end)
+.
+Definition triggerSyscall {E} `{Event -< E} : string -> string -> list val -> itree E val :=
+  embed ESyscall
+.
+
+Definition unwrapN {E X} `{Event -< E} (x: option X): itree E X :=
+  match x with
+  | Some x => Ret x
+  | None => triggerNB "unwrap"
+  end.
+
+Definition unwrapU {E X} `{Event -< E} (x: option X): itree E X :=
+  match x with
+  | Some x => Ret x
+  | None => triggerUB "unwrap"
+  end.
+
+Section Semantics.
+
+  (** We now proceed to denote _Imp_ expressions and statements.
+      We could simply fix in stone the universe of events to be considered,
+      taking as a semantic domain for _Imp_ [itree ImpState X]. That would be
+      sufficient to give meaning to _Imp_, but would prohibit us from relating this
+      meaning to [itree]s stemmed from other entities. Therefore, we
+      parameterize the denotation of _Imp_ by a larger universe of events [eff],
+      of which [ImpState] is assumed to be a subevent. *)
+
+  (* Context {eff : Type -> Type}. *)
+  (* Context {HasImpState : ImpState -< eff}. *)
+  (* Context {HasEvent : Event -< eff}. *)
+  (* Context {HasCallInternalE: CallInternalE -< eff}. *)
+  (* Context {HasCallExternalE: CallExternalE -< eff}. *)
+
+  (** _Imp_ expressions are denoted as [itree eff val], where the returned
+      val in the tree is the val computed by the expression.
+      In the [Var] case, the [trigger] operator smoothly lifts a single event to
+      an [itree] by performing the corresponding [Vis] event and returning the
+      environment's answer immediately.
+      A constant (literal) is simply returned.
+      Usual monadic notations are used in the other cases: we can [bind]
+      recursive computations in the case of operators as one would expect. *)
+
+  Inductive control: Type :=
+  | CNormal
+  | CContinue
+  | CBreak
+  | CReturn
+  .
+
+  Definition is_normal (c: control): bool :=
+    match c with | CNormal => true | _ => false end.
+
+  Definition forall_effect T :=
+    forall
+      (eff : Type -> Type)
+      (HasImpState : ImpState -< eff)
+      (HasEvent : Event -< eff)
+      (HasCallInternalE: CallInternalE -< eff)
+      (HasCallExternalE: CallExternalE -< eff),
+    itree eff T.
+  
+  Definition expr := forall_effect val.
+  
+  Definition stmt := forall_effect (control * val).
+                           
+  Inductive function: Type := mk_function { params: list var ; body: stmt }.
+
+  Definition program: Type := list (string * function).
+
+  Definition Var (v : var) : expr := fun _ _ _ _ _ =>
+    trigger (GetVar v).
+  Definition Lit (n : val) : expr := fun _ _ _ _ _ =>
+    Ret n.
+  Definition Plus (a b : expr) : expr := fun _ _ _ _ _ =>
+    l <- a _ _ _ _ _ ;;
+    r <- b _ _ _ _ _ ;;
+    match l, r with
+    | Vnat l, Vnat r => Ret (Vnat (l + r))
+    | _, _ => triggerNB "expr-plus"
+    end.
+  
+  Definition Minus (a b : expr) : expr := fun _ _ _ _ _ =>
+    l <- a _ _ _ _ _ ;;
+    r <- b _ _ _ _ _ ;;
+    match l, r with
+    | Vnat l, Vnat r => Ret (Vnat (l - r))
+    | _, _ => triggerNB "expr-minus"
+    end.
+  Definition Mult (a b : expr) : expr := fun _ _ _ _ _ =>
+    l <- a _ _ _ _ _ ;;
+    r <- b _ _ _ _ _ ;;
+    match l, r with
+    | Vnat l, Vnat r => Ret (Vnat (l * r))
+    | _, _ => triggerNB "expr-mult"
+    end.
+  Definition Div (a b : expr) : expr := fun _ _ _ _ _ =>
+    l <- a _ _ _ _ _ ;;
+    r <- b _ _ _ _ _ ;;
+    match l, r with
+    | Vnat l, Vnat r => Ret (Vnat (l / r))
+    | _, _ => triggerNB "expr-mult"
+    end.
+  Definition Equal (a b : expr) : expr := fun _ _ _ _ _ =>
+    l <- a _ _ _ _ _ ;;
+    r <- b _ _ _ _ _ ;;
+    Ret (if val_dec l r then Vtrue else Vfalse).
+  Definition Neg (a : expr) : expr := fun _ _ _ _ _ =>
+    v <- a _ _ _ _ _ ;;
+    Ret (if is_true v then Vfalse else Vtrue).
+  Definition LE (a b : expr) : expr := fun _ _ _ _ _ =>
+    l <- a _ _ _ _ _ ;;
+    r <- b _ _ _ _ _ ;;
+    match l, r with
+    | Vnat l, Vnat r => Ret (if Nat.leb l r then Vtrue else Vfalse)
+    | _, _ => triggerNB "expr-LE"
+    end.
+  Definition Load (x: var) (ofs: expr) : expr := fun _ _ _ _ _ =>
+    x <- trigger (GetVar x) ;;
+    ofs <- ofs _ _ _ _ _ ;;
+    match x, ofs with
+    | Vptr cts, Vnat ofs =>
+      match nth_error cts ofs with
+      | Some v => Ret v
+      | _ => triggerNB "expr-load1"
+      end
+    | _, _ => triggerNB "expr-load2"
+    end.
+  Definition CoqCode (es: list (expr)) (P: list val -> val) : expr := fun _ _ _ _ _ =>
+    vs <- mapT (fun e: expr => e _ _ _ _ _) es ;;
+    Ret (P vs).
+  Definition Put (msg: string) (e: expr) : expr := fun _ _ _ _ _ =>
+    v <- e _ _ _ _ _ ;;
+    triggerSyscall "p" msg [v] ;; Ret (Vnodef).
+  Definition Get : expr := fun _ _ _ _ _ =>
+    triggerSyscall "g" "" [].
+
+  Definition _Call (call: _ -> _ -> forall_effect _) (fname: string) (params: list (var + expr)) : expr := fun _ _ _ _ _ =>
+      (* | Call retv_name func_name arg_names => *)
+      (* args <- mapT (fun arg => trigger (GetVar arg)) arg_names;; *)
+      (* '(retv, args_updated) <- trigger (CallInternal func_name args);; *)
+      (* if (length args_updated =? length arg_names)%nat *)
+      (* then *)
+      (*   mapT (fun '(arg_name, arg_updated) => trigger (SetVar arg_name arg_updated)) *)
+      (*        (combine arg_names args_updated);; *)
+      (*        trigger (SetVar retv_name retv) ;; *)
+      (*        Ret (CNormal, Vnodef) *)
+      (* else triggerNB *)
+    args <- (mapT (case_ (Case:=case_sum)
+                         (fun name => trigger (GetVar name))
+                         (fun e: expr => e _ _ _ _ _)) params) ;;
+    '(retv, args_updated) <- call fname args _ _ _ _ _ ;;
+    let nvs: list (var * val) := (filter_map (fun '(ne, v) =>
+                                                match ne with
+                                                | inl n => Some (n, v)
+                                                | _ => None
+                                                end)
+                                             (combine params args_updated))
+    in
+    mapT (fun '(n, v) => trigger (SetVar n v)) nvs ;;
+    Ret retv.
+  Definition ICall := _Call (fun fname args _ _ _ _ _ => trigger (CallInternal fname args)).
+  Definition ECall := _Call (fun fname args _ _ _ _ _ => trigger (CallExternal fname args)).
+  
+  Definition Ampersand (e: expr) : expr := fun _ _ _ _ _ =>
+    v <- e _ _ _ _ _ ;;
+    Ret (Vptr [v]).
+  (* YJ: fixpoint decreasing argument thing *)
+  (* | SubPointer (_: expr) (from: option expr) (to: option expr) *)
+  (* | SubPointer (_: expr) (from: expr + unit) (to: expr + unit) *)
+  Definition SubPointerFrom (p: expr) (from: expr) : expr := fun _ _ _ _ _ =>
+    p <- p _ _ _ _ _ ;;
+    from <- from _ _ _ _ _ ;;
+    match p with
+    | Vptr cts =>
+      match from with
+      | Vnat from => Ret (Vptr (skipn from cts))
+      | _ => triggerNB "expr-subpointer1"
+      end
+    | _ => triggerNB "expr-subpointer2"
+    end.
+  Definition SubPointerTo (p: expr) (to: expr) : expr := fun _ _ _ _ _ =>
+    p <- p _ _ _ _ _ ;;
+    to <- to _ _ _ _ _ ;;
+    match p with
+    | Vptr cts =>
+      match to with
+      | Vnat to => Ret (Vptr (firstn to cts))
+      | _ => triggerNB "expr-subpointer1"
+      end
+    | _ => triggerNB "expr-subpointer2"
+    end.
+    (* | SubPointer p from to => *)
+    (*   p <- (denote_expr p) ;; *)
+    (*     match p with *)
+    (*     | Vptr cts => *)
+          (* from <- denote_expr (match from with *)
+          (*                      | inl from => from *)
+          (*                      | inr _ => 0 *)
+          (*                      end) ;; *)
+          (* to <- denote_expr (match to with *)
+          (*                    | inl to => to *)
+          (*                    | inr _ => 0 *)
+          (*                    end) ;; *)
+        (*   match from, to with *)
+        (*   | Vnat from, Vnat to => Ret (Vptr (firstn to (skipn from cts))) *)
+        (*   | _, _ => triggerNB "expr-subpointer1" *)
+        (*   end *)
+        (* | _ => triggerNB "expr-subpointer2" *)
+        (* end *)
+  Definition GetLen (e: expr) : expr := fun _ _ _ _ _ =>
+    e <- e _ _ _ _ _ ;;
+    match e with
+    | Vptr cts => Ret (Vnat (length cts))
+    | _ => triggerNB "expr-getlen"
+    end.
+  (* YJ: Vptr에 addr: nat 추가하면?
      int x = 5;
      int *y = &x;
      int *z = &x;
- *)
+   *)
 
-(* YJ: fixpoint decreasing argument thing *)
-(* | SubPointer (_: expr) (from: option expr) (to: option expr) *)
-(* | SubPointer (_: expr) (from: expr + unit) (to: expr + unit) *)
-| SubPointerFrom (_: expr) (from: expr)
-| SubPointerTo (_: expr) (to: expr)
-.
+  Definition CBV: expr -> var + expr := inr.
+  Definition CBR: var -> var + expr := inl.
 
-Definition CBV: expr -> var + expr := inr.
-Definition CBR: var -> var + expr := inl.
+  (** We turn to the denotation of statements. As opposed to expressions,
+      statements do not return any val: their semantic domain is therefore
+      [itree eff unit]. The most interesting construct is, naturally, [while].
 
-(** The statements are straightforward. The [While] statement is the only
- potentially diverging one. *)
+      To define its meaning, we make use of the [iter] combinator provided by
+      the [itree] library:
 
-Inductive stmt : Type :=
-| Assign (x : var) (e : expr)    (* x = e *)
-| Seq    (a b : stmt)            (* a ; b *)
-| If     (i : expr) (t e : stmt) (* if (i) then { t } else { e } *)
-| While  (t : expr) (b : stmt)   (* while (t) { b } *)
-| Skip                           (* ; *)
-| Assume
-| Guarantee
-| Store (x: var) (ofs: expr) (e: expr) (* x->ofs := e *)
-(* YJ: I used "var" instead of "var + val". We should "update" retvs into variables. *)
-| Expr (e: expr)
-(* YJ: What kind of super power do we need?
-e.g. See if x has even number --> we need something like "MetaIf (var -> P: Prop)"
- *)
-| Return (e: expr)
-| Break
-| Continue
-| Yield
-.
+      [iter : (A -> itree E (A + B)) -> A -> itree E B].
 
-Inductive function: Type := mk_function { params: list var ; body: stmt }.
-Definition program: Type := list (string * function).
+      The combinator takes as argument the body of the loop, i.e. a function
+      that maps inputs of type [A], the accumulator, to an [itree] computing
+      either a new [A] that can be fed back to the loop, or a return val of
+      type [B]. The combinator builds the fixpoint of the body, hiding away the
+      [A] argument from the return type.
+
+      Compared to the [mrec] and [rec] combinators introduced in
+      [Introduction.v], [iter] is more restricted in that it naturally
+      represents tail recursive functions.  It, however, enjoys a rich equational
+      theory: its addition grants the type of _continuation trees_ (named
+      [ktree]s in the library), a structure of _traced monoidal category_.
+
+      We use [loop] to first build a new combinator [while].
+      The accumulator degenerates to a single [unit] val indicating
+      whether we entered the body of the while loop or not. Since the
+      the operation does not return any val, the return type is also
+      taken to be [unit].
+      That is, the right tag [inr tt] says to exit the loop,
+      while the [inl tt] says to continue. *)
+
+  Definition while {eff} (step: itree eff (unit + (control * val))): itree eff (control * val) :=
+    iter (C := Kleisli _) (fun _ => step) tt.
+
+  (** The meaning of Imp statements is now easy to define.  They are all
+      straightforward, except for [While], which uses our new [while] combinator
+      over the computation that evaluates the conditional, and then the body if
+      the former was true.  *)
+  Typeclasses eauto := debug 4.
+
+  (** The statements are straightforward. The [While] statement is the only
+      potentially diverging one. *)
+
+  (* x = e *)  
+  Definition Assign (x : var) (e : expr) : stmt := fun _ _ _ _ _ =>
+    v <- e _ _ _ _ _ ;;
+    trigger (SetVar x v) ;;
+    Ret (CNormal, Vnodef).
+  (* a ; b *)
+  Definition Seq (a b : stmt) : stmt := fun _ _ _ _ _ => 
+    '(c, v) <- a _ _ _ _ _ ;;
+    if (is_normal c) then b _ _ _ _ _ else Ret (c, v).
+  (* if (i) then { t } else { e } *)  
+  Definition If (i : expr) (t e : stmt) : stmt := fun _ _ _ _ _ =>
+    v <- i _ _ _ _ _ ;;
+    if is_true v then t _ _ _ _ _ else e _ _ _ _ _.
+  (* while (t) { b } *)
+  Definition While  (t : expr) (b : stmt) : stmt := fun _ _ _ _ _ =>
+    while (v <- t _ _ _ _ _ ;;
+           if is_true v
+           then '(c, v) <- b _ _ _ _ _ ;;
+                match c with
+                | CNormal | CContinue => Ret (inl tt)
+                | CBreak => Ret (inr (CNormal, v))
+                | CReturn => Ret (inr (CReturn, v))
+                end
+           else Ret (inr (CNormal, Vnodef (* YJ: this is temporary *)))).
+  (* ; *)    
+  Definition Skip : stmt := fun _ _ _ _ _ =>
+    Ret (CNormal, Vnodef).
+  Definition Assume : stmt := fun _ _ _ _ _ =>
+    triggerUB "stmt-assume".
+  Definition Guarantee : stmt := fun _ _ _ _ _ =>
+    triggerNB "stmt-grnt".
+  (* x->ofs := e *)
+  (* YJ: I used "var" instead of "var + val". We should "update" retvs into variables. *)  
+  Definition Store (x: var) (ofs: expr) (e: expr) : stmt := fun _ _ _ _ _ =>
+    ofs <- ofs _ _ _ _ _ ;;
+    e <- e _ _ _ _ _ ;;
+    v <- trigger (GetVar x) ;;
+    match ofs, v with
+    | Vnat ofs, Vptr cts0 =>
+      cts1 <- (unwrapN (update_err cts0 ofs e)) ;;
+      trigger (SetVar x (Vptr cts1))
+    | _, _ => triggerNB "stmt-store"
+    end ;;
+    Ret (CNormal, Vnodef).
+  Definition Expr (e: expr) : stmt := fun _ _ _ _ _ =>
+    v <- e _ _ _ _ _ ;;
+    Ret (CNormal, v).
+  (* YJ: What kind of super power do we need?
+     e.g. See if x has even number --> we need something like "MetaIf (var -> P: Prop)"
+   *)
+  Definition Return (e: expr) : stmt := fun _ _ _ _ _ =>
+    v <- e _ _ _ _ _ ;;
+    Ret (CReturn, v).
+  Definition Break : stmt := fun _ _ _ _ _ =>
+    Ret (CBreak, Vnodef).
+  Definition Continue : stmt := fun _ _ _ _ _ =>
+    Ret (CContinue, Vnodef).
+  Definition Yield : stmt := fun _ _ _ _ _ =>
+    trigger EYield ;;
+    Ret (CNormal, Vnodef).
+  
+End Semantics.
 
 (* ========================================================================== *)
 (** ** Notations *)
@@ -214,303 +528,6 @@ End ImpNotations.
 
 Import ImpNotations.
 
-(* ========================================================================== *)
-(** ** Semantics *)
-
-(** _Imp_ produces effects by manipulating its variables.  To account for this,
-    we define a type of _external interactions_ [ImpState] modeling reads and
-    writes to global variables.
-
-    A read, [GetVar], takes a variable as an argument and expects the
-    environment to answer with a val, hence defining an event of type
-    [ImpState val].
-
-    Similarly, [SetVar] is a write event parameterized by both a variable and a
-    val to be written, and defines an event of type [ImpState unit], no
-    informative answer being expected from the environment.  *)
-Variant ImpState : Type -> Type :=
-| GetVar (x : var) : ImpState val
-| SetVar (x : var) (v : val) : ImpState unit
-| PushEnv: ImpState unit
-| PopEnv: ImpState unit
-(* | StoreVar (x: var) (ofs: nat) (v: val): ImpState bool *)
-.
-
-Variant Event: Type -> Type :=
-| ENB (msg: string): Event void
-| EUB (msg: string): Event void
-| ESyscall
-    (name: string)
-    (msg: string)
-    (arg: list val): Event val
-| EYield: Event unit
-.
-
-(* YJ: Will be consumed internally *)
-Variant CallInternalE: Type -> Type :=
-| CallInternal (func_name: string) (args: list val): CallInternalE (val * list val)
-.
-
-Variant CallExternalE: Type -> Type :=
-| CallExternal (func_name: string) (args: list val): CallExternalE (val * list val)
-.
-
-Definition triggerUB {E A} `{Event -< E} (msg: string): itree E A :=
-  vis (EUB msg) (fun v => match v: void with end)
-.
-Definition triggerNB {E A} `{Event -< E} (msg: string) : itree E A :=
-  vis (ENB msg) (fun v => match v: void with end)
-.
-Definition triggerSyscall {E} `{Event -< E} : string -> string -> list val -> itree E val :=
-  embed ESyscall
-.
-
-Definition unwrapN {E X} `{Event -< E} (x: option X): itree E X :=
-  match x with
-  | Some x => ret x
-  | None => triggerNB "unwrap"
-  end.
-
-Definition unwrapU {E X} `{Event -< E} (x: option X): itree E X :=
-  match x with
-  | Some x => ret x
-  | None => triggerUB "unwrap"
-  end.
-
-Section Denote.
-
-  (** We now proceed to denote _Imp_ expressions and statements.
-      We could simply fix in stone the universe of events to be considered,
-      taking as a semantic domain for _Imp_ [itree ImpState X]. That would be
-      sufficient to give meaning to _Imp_, but would prohibit us from relating this
-      meaning to [itree]s stemmed from other entities. Therefore, we
-      parameterize the denotation of _Imp_ by a larger universe of events [eff],
-      of which [ImpState] is assumed to be a subevent. *)
-
-  Context {eff : Type -> Type}.
-  Context {HasImpState : ImpState -< eff}.
-  Context {HasEvent : Event -< eff}.
-  Context {HasCallInternalE: CallInternalE -< eff}.
-  Context {HasCallExternalE: CallExternalE -< eff}.
-
-  (** _Imp_ expressions are denoted as [itree eff val], where the returned
-      val in the tree is the val computed by the expression.
-      In the [Var] case, the [trigger] operator smoothly lifts a single event to
-      an [itree] by performing the corresponding [Vis] event and returning the
-      environment's answer immediately.
-      A constant (literal) is simply returned.
-      Usual monadic notations are used in the other cases: we can [bind]
-      recursive computations in the case of operators as one would expect. *)
-
-  Variable ctx: program.
-
-  Fixpoint denote_expr (e : expr) : itree eff val :=
-    match e with
-    | Var v     => trigger (GetVar v)
-    | Lit n     => ret n
-    | Plus a b  => l <- denote_expr a ;; r <- denote_expr b ;;
-                     match l, r with
-                     | Vnat l, Vnat r => ret (Vnat (l + r))
-                     | _, _ => triggerNB "expr-plus"
-                     end
-    | Minus a b => l <- denote_expr a ;; r <- denote_expr b ;;
-                     match l, r with
-                     | Vnat l, Vnat r => ret (Vnat (l - r))
-                     | _, _ => triggerNB "expr-minus"
-                     end
-    | Mult a b  => l <- denote_expr a ;; r <- denote_expr b ;;
-                     match l, r with
-                     | Vnat l, Vnat r => ret (Vnat (l * r))
-                     | _, _ => triggerNB "expr-mult"
-                     end
-    | Div a b   => l <- denote_expr a ;; r <- denote_expr b ;;
-                     match l, r with
-                     | Vnat l, Vnat r => ret (Vnat (l / r))
-                     | _, _ => triggerNB "expr-mult"
-                     end
-    | Equal a b => l <- denote_expr a ;; r <- denote_expr b ;;
-                     Ret (if val_dec l r then Vtrue else Vfalse)
-    | Neg a => v <- denote_expr a ;; Ret (if is_true v then Vfalse else Vtrue)
-    | LE a b => l <- denote_expr a ;; r <- denote_expr b ;;
-                  match l, r with
-                  | Vnat l, Vnat r => Ret (if Nat.leb l r then Vtrue else Vfalse)
-                  | _, _ => triggerNB "expr-LE"
-                  end
-    | Load x ofs => x <- trigger (GetVar x) ;; ofs <- denote_expr ofs ;;
-                      match x, ofs with
-                      | Vptr cts, Vnat ofs =>
-                        match nth_error cts ofs with
-                        | Some v => ret v
-                        | _ => triggerNB "expr-load1"
-                        end
-                      | _, _ => triggerNB "expr-load2"
-                      end
-    | CoqCode es P => vs <- mapT (denote_expr) es ;; ret (P vs)
-    | Put msg e => v <- denote_expr e ;;
-                 triggerSyscall "p" msg [v] ;; Ret (Vnodef)
-    | Get => triggerSyscall "g" "" []
-    | Call func_name params =>
-      (* | Call retv_name func_name arg_names => *)
-      (* args <- mapT (fun arg => trigger (GetVar arg)) arg_names;; *)
-      (* '(retv, args_updated) <- trigger (CallInternal func_name args);; *)
-      (* if (length args_updated =? length arg_names)%nat *)
-      (* then *)
-      (*   mapT (fun '(arg_name, arg_updated) => trigger (SetVar arg_name arg_updated)) *)
-      (*        (combine arg_names args_updated);; *)
-      (*        trigger (SetVar retv_name retv) ;; *)
-      (*        ret (CNormal, Vnodef) *)
-      (* else triggerNB *)
-
-      args <- (mapT (case_ (Case:=case_sum)
-                           (fun name => trigger (GetVar name))
-                           (fun e => denote_expr e)) params) ;;
-      '(retv, args_updated) <- match (find (fun '(n, _) => string_dec func_name n) ctx) with
-                               | Some _ => trigger (CallInternal func_name args)
-                               | None => trigger (CallExternal func_name args)
-                               end ;;
-      let nvs: list (var * val) := (filter_map (fun '(ne, v) =>
-                                                  match ne with
-                                                  | inl n => Some (n, v)
-                                                  | _ => None
-                                                  end)
-                                               (combine params args_updated))
-      in
-      mapT (fun '(n, v) => trigger (SetVar n v)) nvs ;;
-      ret retv
-    | Ampersand e => v <- (denote_expr e) ;; Ret (Vptr [v])
-    | SubPointerFrom p from =>
-      p <- (denote_expr p) ;; from <- (denote_expr from) ;;
-        match p with
-        | Vptr cts =>
-          match from with
-          | Vnat from => Ret (Vptr (skipn from cts))
-          | _ => triggerNB "expr-subpointer1"
-          end
-        | _ => triggerNB "expr-subpointer2"
-        end
-    | SubPointerTo p to =>
-      p <- (denote_expr p) ;; to <- (denote_expr to) ;;
-        match p with
-        | Vptr cts =>
-          match to with
-          | Vnat to => Ret (Vptr (firstn to cts))
-          | _ => triggerNB "expr-subpointer1"
-          end
-        | _ => triggerNB "expr-subpointer2"
-        end
-    (* | SubPointer p from to => *)
-    (*   p <- (denote_expr p) ;; *)
-    (*     match p with *)
-    (*     | Vptr cts => *)
-          (* from <- denote_expr (match from with *)
-          (*                      | inl from => from *)
-          (*                      | inr _ => 0 *)
-          (*                      end) ;; *)
-          (* to <- denote_expr (match to with *)
-          (*                    | inl to => to *)
-          (*                    | inr _ => 0 *)
-          (*                    end) ;; *)
-        (*   match from, to with *)
-        (*   | Vnat from, Vnat to => Ret (Vptr (firstn to (skipn from cts))) *)
-        (*   | _, _ => triggerNB "expr-subpointer1" *)
-        (*   end *)
-        (* | _ => triggerNB "expr-subpointer2" *)
-        (* end *)
-    | GetLen e => e <- denote_expr e ;;
-                    match e with
-                    | Vptr cts => Ret ((length cts): val)
-                    | _ => triggerNB "expr-getlen"
-                    end
-    end.
-
-  Inductive control: Type :=
-  | CNormal
-  | CContinue
-  | CBreak
-  | CReturn
-  .
-
-  Definition is_normal (c: control): bool := match c with | CNormal => true | _ => false end.
-
-  (** We turn to the denotation of statements. As opposed to expressions,
-      statements do not return any val: their semantic domain is therefore
-      [itree eff unit]. The most interesting construct is, naturally, [while].
-
-      To define its meaning, we make use of the [iter] combinator provided by
-      the [itree] library:
-
-      [iter : (A -> itree E (A + B)) -> A -> itree E B].
-
-      The combinator takes as argument the body of the loop, i.e. a function
-      that maps inputs of type [A], the accumulator, to an [itree] computing
-      either a new [A] that can be fed back to the loop, or a return val of
-      type [B]. The combinator builds the fixpoint of the body, hiding away the
-      [A] argument from the return type.
-
-      Compared to the [mrec] and [rec] combinators introduced in
-      [Introduction.v], [iter] is more restricted in that it naturally
-      represents tail recursive functions.  It, however, enjoys a rich equational
-      theory: its addition grants the type of _continuation trees_ (named
-      [ktree]s in the library), a structure of _traced monoidal category_.
-
-      We use [loop] to first build a new combinator [while].
-      The accumulator degenerates to a single [unit] val indicating
-      whether we entered the body of the while loop or not. Since the
-      the operation does not return any val, the return type is also
-      taken to be [unit].
-      That is, the right tag [inr tt] says to exit the loop,
-      while the [inl tt] says to continue. *)
-
-  Definition while (step: itree eff (unit + (control * val))): itree eff (control * val) :=
-    iter (C := Kleisli _) (fun _ => step) tt.
-
-  (** The meaning of Imp statements is now easy to define.  They are all
-      straightforward, except for [While], which uses our new [while] combinator
-      over the computation that evaluates the conditional, and then the body if
-      the former was true.  *)
-  Typeclasses eauto := debug 4.
-
-  Fixpoint denote_stmt (s : stmt) : itree eff (control * val) :=
-    match s with
-    | Assign x e =>  v <- denote_expr e ;; trigger (SetVar x v) ;; ret (CNormal, Vnodef)
-    | Seq a b    =>  '(c, v) <- denote_stmt a ;; if (is_normal c)
-                                                 then denote_stmt b
-                                                 else ret (c, v)
-    | If i t e   =>
-      v <- denote_expr i ;;
-      if is_true v then denote_stmt t else denote_stmt e
-
-    | While t b =>
-      (while (v <- denote_expr t ;;
-                if is_true v
-                then '(c, v) <- denote_stmt b ;;
-                      match c with
-                      | CNormal | CContinue => ret (inl tt)
-                      | CBreak => ret (inr (CNormal, v))
-                      | CReturn => ret (inr (CReturn, v))
-                      end
-                else ret (inr (CNormal, Vnodef (* YJ: this is temporary *)))))
-    | Skip => ret (CNormal, Vnodef)
-    | Assume => triggerUB "stmt-assume"
-    | Guarantee => triggerNB "stmt-grnt"
-    | Store x ofs e => ofs <- denote_expr ofs ;; e <- denote_expr e ;;
-                           v <- trigger (GetVar x) ;;
-                           match ofs, v with
-                           | Vnat ofs, Vptr cts0 =>
-                             cts1 <- (unwrapN (update_err cts0 ofs e)) ;;
-                                  trigger (SetVar x (Vptr cts1))
-                           | _, _ => triggerNB "stmt-store"
-                           end ;;
-                           ret (CNormal, Vnodef)
-    | Expr e => v <- denote_expr e ;; Ret (CNormal, v)
-    | Return e => v <- denote_expr e ;; Ret (CReturn, v)
-    | Break => Ret (CBreak, Vnodef)
-    | Continue => Ret (CContinue, Vnodef)
-    | Yield => trigger EYield ;; Ret (CNormal, Vnodef)
-    end.
-
-End Denote.
-
 Section Denote.
 
   Open Scope expr_scope.
@@ -537,7 +554,7 @@ Section Denote.
            let new_body := fold_left (fun s i => (fst i) #:= (Lit (snd i)) #; s)
                                      (* YJ: Why coercion does not work ?? *)
                                      (combine f.(params) args) f.(body) in
-           '(_, retv) <- denote_stmt ctx new_body ;;
+           '(_, retv) <- new_body _ _ _ _ _ ;;
            (* YJ: maybe we can check whether "control" is return (not break/continue) here *)
            params_updated <- mapT (fun param => trigger (GetVar param)) (f.(params));;
            trigger PopEnv ;;
