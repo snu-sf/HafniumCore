@@ -114,11 +114,12 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
   (*   sl_init(&p->lock); *)
   (* } *)
 
-  (*** DELTA: Use function return value instead of borrowing && Add param to "Lock.init" **)
+  (*** DELTA: Use function return value instead of borrowing && Add call to "Lock.unlock" **)
   Definition init (p: var): stmt :=
     (Store p chunk_list_ofs Vnull) #;
     (Store p fallback_ofs Vnull) #;
-    (Store p lock_ofs (Call "Lock.init" [CBV p])) #;
+    (Store p lock_ofs (Call "Lock.new" [])) #;
+    (Call "Lock.unlock" [CBV (Load p lock_ofs) ; CBV p]) #;
     Skip
   .
 
@@ -128,14 +129,16 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
   (* 	p->fallback = fallback; *)
   (* } *)
 
-  (*** DELTA: Inlined a call to "init" because we don't want to call "Lock.init" twice ***)
+  (*** DELTA: Add call to "Lock.unlock"  ***)
   Definition init_with_fallback (p fallback: var): stmt :=
-    (* Call "init" [CBR p] #; *)
-    (* (Store p fallback_ofs fallback) *)
-    (Store p chunk_list_ofs Vnull) #;
+    Call "init" [CBR p] #;
     (Store p fallback_ofs fallback) #;
-    (Store p lock_ofs (Call "Lock.init" [CBV p])) #;
+    (Call "Lock.unlock" [CBV (Load p lock_ofs) ; CBV p]) #;
     Skip
+    (* (Store p chunk_list_ofs Vnull) #; *)
+    (* (Store p fallback_ofs fallback) #; *)
+    (* (Store p lock_ofs (Call "Lock.init" [CBV p])) #; *)
+    (* Skip *)
   .
 
   (* void *mpool_alloc_contiguous(struct mpool *p, size_t count, size_t align) *)
@@ -162,8 +165,8 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
      then Skip
      else Guarantee
     #;
-    next #:= (Load p chunk_list_ofs) #;
     p #:= (Call "Lock.lock" [CBV (Load p lock_ofs)]) #;
+    next #:= (Load p chunk_list_ofs) #;
     ret #:= (Call "alloc_contiguous_no_fallback" [CBR next ; CBV count]) #;
     Store p chunk_list_ofs next #;
     (Call "Lock.unlock" [CBV (Load p lock_ofs) ; CBV p]) #;
@@ -485,37 +488,38 @@ Module TEST.
       p2 #:= Vptr None [0: val ; 0: val ; 0: val ] #;
       Call "init" [CBR p2] #;
       Call "add_chunk" [CBR p2 ; CBV (big_chunk 2500 2) ; CBV 2] #;
-      Debug "p2: " p2 #;
+      Debug "p2:                    " p2 #;
 
       Call "init_with_fallback" [CBR p1 ; CBV p2] #;
-      Debug "p1: " p1 #;
+      Debug "p1:                    " p1 #;
       Call "add_chunk" [CBR p1 ; CBV (big_chunk 1500 3) ; CBV 3] #;
-      Debug "p1: " p1 #;
+      Debug "p1:                    " p1 #;
 
       Call "init_with_fallback" [CBR p0 ; CBV p1] #;
       Call "add_chunk" [CBR p0 ; CBV (big_chunk 500  1) ; CBV 1] #;
-      Debug "p0: " p0 #;
+      Debug "p0:                    " p0 #;
 
 
+      Debug "" Vnull #;
       Debug "INIT DONE" Vnull #;
+      Debug "" Vnull #;
 
-
-      Debug "p0: " p0 #;
+      Debug "p0:                    " p0 #;
       r #:= Call "alloc_contiguous" [CBR p0 ; CBV 1] #;
       #if r then Skip else Assume #;
-      Debug "p0: " p0 #;
+      Debug "p0:                    " p0 #;
       r #:= Call "alloc_contiguous" [CBR p0 ; CBV 2] #;
       #if r then Skip else Assume #;
-      Debug "p0: " p0 #;
+      Debug "p0:                    " p0 #;
       r #:= Call "alloc_contiguous" [CBR p0 ; CBV 3] #;
       #if r then Assume else Skip #;
-      Debug "p0: " p0 #;
+      Debug "p0:                    " p0 #;
       r #:= Call "alloc_contiguous" [CBR p0 ; CBV 2] #;
       #if r then Skip else Assume #;
-      Debug "p0: " p0 #;
+      Debug "p0:                    " p0 #;
       r #:= Call "alloc_contiguous" [CBR p0 ; CBV 1] #;
       #if r then Skip else Assume #;
-      Debug "p0: " p0 #;
+      Debug "p0:                    " p0 #;
       r #:= Call "alloc_contiguous" [CBR p0 ; CBV 1] #;
       #if r then Assume else Skip #;
       Put "Test3 Passed" Vnull #;

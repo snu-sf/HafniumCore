@@ -59,7 +59,8 @@ Module LOCK.
   Inductive LockEvent: Type -> Type :=
   | TryLockE (id: ident): LockEvent (unit + val) (* inl: is already running, inr: not *)
   | UnlockE (id: ident) (v: val): LockEvent unit
-  | InitE (v: val): LockEvent ident
+  (* | InitE (v: val): LockEvent ident *)
+  | NewE: LockEvent ident
   .
 
   Definition get_id (v: val): option ident :=
@@ -70,7 +71,8 @@ Module LOCK.
   .
 
   Inductive case: Type :=
-  | case_init
+  (* | case_init *)
+  | case_new
   | case_unlock
   | case_lock
   | case_other
@@ -83,18 +85,19 @@ Module LOCK.
       if rel_dec func_name "Lock.lock"
       then case_lock
       else
-        if rel_dec func_name "Lock.init"
-        then case_init
+        if rel_dec func_name "Lock.new"
+        then case_new
         else case_other
   .
 
   Definition sem: CallExternalE ~> itree (CallExternalE +' Event +' LockEvent) :=
     (fun _ '(CallExternal func_name args) =>
        match case_analysis func_name with
-       | case_init =>
-         triggerSyscall "d" "lock-init" [Vnull] ;;
-         v <- (unwrapN (nth_error args 0)) ;;
-         id <- trigger (InitE v) ;;
+       | case_new =>
+         triggerSyscall "d" "lock-new" [Vnull] ;;
+         (* v <- (unwrapN (nth_error args 0)) ;; *)
+         (* id <- trigger (InitE v) ;; *)
+         id <- trigger (NewE) ;;
          Ret (Vnat id, [])
        | case_unlock =>
          id <- (unwrapN (nth_error args 0 >>= get_id)) ;;
@@ -137,8 +140,8 @@ Module LOCK.
   Definition debug_print (A: Type) (printer: A -> unit) (content: A): A :=
     let unused := printer content in content.
   Extract Constant debug_print =>
-  (* "fun printer content -> printer content ; content" *)
-  "fun printer content -> content"
+  "fun printer content -> printer content ; content"
+  (* "fun printer content -> content" *)
   .
   Variable alist_printer: alist ident val -> unit.
   (* Variable dummy_client: unit -> unit. *)
@@ -146,7 +149,15 @@ Module LOCK.
   Extract Constant alist_printer =>
   "
   let rec nat_to_int = function | O -> 0 | S n -> succ (nat_to_int n) in
-  fun al -> print_string ""]]] "" ; print_int (nat_to_int (length al)) ; print_string "" "" ; (List.iter (fun kv -> print_int (nat_to_int (fst kv)) ; print_string "" "") al) ; print_endline "" "" "
+  fun al -> print_string ""<LOCKSTATE> "" ; print_int (nat_to_int (length al)) ; print_string "" "" ; (List.iter (fun kv -> print_int (nat_to_int (fst kv)) ; print_string "" "") al) ; print_endline "" "" "
+  .
+
+  Variable failwith: forall {T}, string -> T.
+  Extract Constant failwith =>
+  "
+  let cl2s = fun cl -> String.concat """" (List.map (String.make 1) cl) in
+  fun s -> failwith (cl2s s)
+  "
   .
 
   Definition handler: LockEvent ~> stateT owned_heap (itree Event) :=
@@ -155,7 +166,10 @@ Module LOCK.
       match e with
       | UnlockE k v =>
         let m := debug_print alist_printer m in
-        Ret ((ctr, Maps.add k v m), tt)
+        match Maps.lookup k m with
+        | Some _ => failwith "UNLOCKING TWICE"
+        | None => Ret ((ctr, Maps.add k v m), tt)
+        end
       | TryLockE k =>
         let m := debug_print alist_printer m in
         match Maps.lookup k m with
@@ -166,17 +180,19 @@ Module LOCK.
         | None => Ret ((ctr, m), inl tt)
         end
       (* | WHY_ANY_NAME_WORKS_HERE_THIS_IS_WEIRD => Ret ((S ctr, m), ctr) *)
-      | InitE v =>
+      (* | InitE v => *)
+      (*   let m := debug_print alist_printer m in *)
+      (*   let m' := debug_print alist_printer (Maps.add ctr v m) in *)
+      (*   Ret ((S ctr, m'), ctr) *)
+      | NewE =>
         let m := debug_print alist_printer m in
-        let m' := debug_print alist_printer (Maps.add ctr v m) in
-        Ret ((S ctr, m'), ctr)
-        (* Ret ((S ctr, (Maps.add ctr v m)), ctr) *)
+        Ret ((S ctr, m), ctr)
       end
   .
 
   Definition modsem: ModSem :=
     mk_ModSem
-      (fun s => existsb (string_dec s) ["Lock.unlock" ; "Lock.lock" ; "Lock.init"])
+      (fun s => existsb (string_dec s) ["Lock.unlock" ; "Lock.lock" ; "Lock.new"])
       (* in_dec Strings.String.string_dec s ["Lock.unlock" ; "Lock.lock" ; "Lock.init"]) *)
       (5252, Maps.empty)
       LockEvent
