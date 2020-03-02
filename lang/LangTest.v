@@ -292,10 +292,10 @@ Module Control.
   Definition f_function: function. mk_function_tac f ["ctrl"] ["local0" ; "local1"]. Defined.
 
   Definition main r: stmt :=
-    r #:= (Call "f" [CBV 0]) #; #if r == 0 then Skip else Assume #;
-    r #:= (Call "f" [CBV 1]) #; #if r == 10 then Skip else Assume #;
-    r #:= (Call "f" [CBV 2]) #; #if r == 111 then Skip else Assume #;
-    r #:= (Call "f" [CBV 3]) #; #if r == 10110 then Skip else Assume #;
+    r #:= (Call "f" [CBV 0]) #; #assume (r == 0) #;
+    r #:= (Call "f" [CBV 1]) #; #assume (r == 10) #;
+    r #:= (Call "f" [CBV 2]) #; #assume (r == 111) #;
+    r #:= (Call "f" [CBV 3]) #; #assume (r == 10110) #;
     Skip
   .
 
@@ -319,7 +319,7 @@ Module DoubleReturn.
 
   Definition main r :=
     r #:= (Call "f" []) #;
-    #if ! (r == 0) then Assume else Skip #;
+    #assume (r == 0) #;
     Skip
   .
 
@@ -414,8 +414,8 @@ Module MultiModuleGenv.
 
   Definition main: stmt :=
     (Call "f" []) #;
-    #if (Call "g" []) == 1000 then Skip else Assume #;
-    #if (Call "f" []) == 2000 then Skip else Assume #;
+    #assume ((Call "g" []) == 1000) #;
+    #assume ((Call "f" []) == 2000) #;
     Put "Test(MultiModuleGenv) passed" Vnull
   .
 
@@ -587,16 +587,16 @@ Module MultiModuleLocalStateSimple.
       (Call "f" [CBV 10]) #;
       (Call "g" []) #;
       Yield #; r #:= (Call "f" []) #;
-      #if r == 10 then Skip else Assume #;
+      #assume (r == 10) #;
       Debug "passed 1" Vnull #;
       (Call "g" []) #;
       Yield #; r #:= (Call "f" []) #;
-      #if r == 10 then Skip else Assume #;
+      #assume (r == 10) #;
       Debug "passed 2" Vnull #;
       Yield #; (Call "f" [CBV 20]) #;
       (Call "g" []) #;
       Yield #; r #:= (Call "f" []) #;
-      #if r == 20 then Skip else Assume #;
+      #assume (r == 20) #;
       Debug "passed 3" Vnull #;
       Put "Test(MultiModuleLocalStateSimple) passed" Vnull #;
       Skip

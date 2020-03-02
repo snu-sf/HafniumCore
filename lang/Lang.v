@@ -158,8 +158,8 @@ Inductive stmt : Type :=
 | If     (i : expr) (t e : stmt) (* if (i) then { t } else { e } *)
 | While  (t : expr) (b : stmt)   (* while (t) { b } *)
 | Skip                           (* ; *)
-| Assume
-| Guarantee
+| AssumeFail
+| GuaranteeFail
 | Store (x: var) (ofs: expr) (e: expr) (* x->ofs := e *)
 (* YJ: I used "var" instead of "var + val". We should "update" retvs into variables. *)
 | Expr (e: expr)
@@ -201,6 +201,12 @@ Module LangNotations.
   Infix "<=" := LE : expr_scope.
   (* Notation "'NULL'" := (Vptr []) (at level 40): expr_scope. *)
 
+  Notation "#true" :=
+    (Lit (Vnat 1)) (at level 50): stmt_scope.
+
+  Notation "#false" :=
+    (Lit (Vnat 0)) (at level 50): stmt_scope.
+
   Notation "'!' e" :=
     (Neg e) (at level 40, e at level 50): stmt_scope.
 
@@ -229,6 +235,12 @@ Module LangNotations.
        right associativity,
        format
          "'[v  ' '#while'  t  'do' '/' '[v' b  ']' ']'").
+
+  Notation "#assume e" :=
+    (#if e then Skip else AssumeFail) (at level 60, e at level 50): stmt_scope.
+
+  Notation "#guarantee e" :=
+    (#if e then Skip else GuaranteeFail) (at level 60, e at level 50): stmt_scope.
 
   (* Notation "x '#->' ofs '#:=' e" := *)
   (*   (Store x ofs e) (at level 60, e at level 50): stmt_scope. *)
@@ -541,8 +553,8 @@ Section Denote.
                       end
                 else ret (inr (CNormal, Vnodef (* YJ: this is temporary *)))))
     | Skip => ret (CNormal, Vnodef)
-    | Assume => triggerUB "stmt-assume"
-    | Guarantee => triggerNB "stmt-grnt"
+    | AssumeFail => triggerUB "stmt-assume"
+    | GuaranteeFail => triggerNB "stmt-grnt"
     | Store x ofs e => ofs <- denote_expr ofs ;; e <- denote_expr e ;;
                            v <- triggerGetVar x ;;
                            match ofs, v with

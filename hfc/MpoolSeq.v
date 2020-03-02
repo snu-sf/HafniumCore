@@ -166,10 +166,7 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
   Definition alloc_contiguous
              (p count: var)
              (ret: var): stmt :=
-    #if (CoqCode [p: expr] (fun p => mpool_wf (nth 0 p Vnull)))
-     then Skip
-     else Guarantee
-    #;
+    #guarantee (CoqCode [p: expr] (fun p => mpool_wf (nth 0 p Vnull))) #;
     #while Vtrue
      do (
        Debug "looping alloc_contiguous" Vnull #;
@@ -190,10 +187,7 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
   Definition alloc_contiguous2
              (p count: var)
              (ret next nextp: var): stmt :=
-    #if (CoqCode [p: expr] (fun p => mpool_wf (nth 0 p Vnull)))
-     then Skip
-     else Guarantee
-    #;
+    #guarantee (CoqCode [p: expr] (fun p => mpool_wf (nth 0 p Vnull))) #;
     next #:= (Load p chunk_list_ofs) #;
     ret #:= (Call "alloc_contiguous_no_fallback2" [CBR next ; CBV count]) #;
     Store p chunk_list_ofs next #;
@@ -259,10 +253,7 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
   Definition alloc_contiguous_no_fallback
              (p count: var)
              (prev ret new_chunk chunk: var): stmt :=
-    #if (CoqCode [p: expr] (fun p => mpool_wf (nth 0 p Vnull)))
-     then Skip
-     else Guarantee
-    #;
+    #guarantee (CoqCode [p: expr] (fun p => mpool_wf (nth 0 p Vnull))) #;
     prev #:= (#& (Load p chunk_list_ofs)) #;
     Debug "(A)prev_is: " prev #;
     #while prev
@@ -461,12 +452,12 @@ Module TEST.
         r1 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
         (Debug "alloc first; should succeed: " r1) #;
         (Debug "alloc first; p: " p) #;
-        #if r1 then Skip else Assume #;
+        #assume r1 #;
 
         r2 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
         (Debug "alloc second; should fail: " r2) #;
         (Debug "alloc second; p: " p) #;
-        #if r2 then Assume else Skip #;
+        #assume (!r2) #;
 
         Call "add_chunk" [CBR p ; CBV r1 ; CBV 7] #;
         (Debug "add_chunk done" p) #;
@@ -474,7 +465,7 @@ Module TEST.
         r3 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
         (Debug "alloc third; should succeed: " r3) #;
         (Debug "alloc third; p: " p) #;
-        #if r3 then Skip else Assume #;
+        #assume r3 #;
 
 
         Put "Test2 Passed" Vnull #;
@@ -515,12 +506,12 @@ Module TEST.
         r1 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
         (* (Put "alloc first; should succeed: " r1) #; *)
         (* (Put "alloc first; p: " p) #; *)
-        #if r1 then Skip else Assume #;
+        #assume r1 #;
 
         r2 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
         (* (Put "alloc second; should succeed: " r2) #; *)
         (* (Put "alloc second; p: " p) #; *)
-        #if r2 then Skip else Assume #;
+        #assume r2 #;
 
         Put "Test3 Passed" Vnull #;
         Skip
@@ -559,17 +550,17 @@ Module TEST.
       (* Call "add_chunk" [CBR p2 ; CBV (big_chunk 2500 10) ; CBV 10] #; *)
 
       (* r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 5] #; *)
-      (* #if r then Skip else Assume #; *)
+      (* #assume r #; *)
       (* Call "alloc_contiguous2" [CBR p0 ; CBV 10] #; *)
-      (* #if r then Skip else Assume #; *)
+      (* #assume r #; *)
       (* Call "alloc_contiguous2" [CBR p0 ; CBV 15] #; *)
-      (* #if r then Assume else Skip #; *)
+      (* #assume (!r) #; *)
       (* Call "alloc_contiguous2" [CBR p0 ; CBV 5] #; *)
-      (* #if r then Skip else Assume #; *)
+      (* #assume r #; *)
       (* Call "alloc_contiguous2" [CBR p0 ; CBV 10] #; *)
-      (* #if r then Skip else Assume #; *)
+      (* #assume r #; *)
       (* Call "alloc_contiguous2" [CBR p0 ; CBV 5] #; *)
-      (* #if r then Skip else Assume #; *)
+      (* #assume r #; *)
       (* Skip *)
       p0 #:= Vptr None [0: val ; 0: val] #;
       p1 #:= Vptr None [0: val ; 0: val] #;
@@ -585,17 +576,17 @@ Module TEST.
       
 
       r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 1] #;
-      #if r then Skip else Assume #;
+      #assume r #;
       r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 2] #;
-      #if r then Skip else Assume #;
+      #assume r #;
       r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 3] #;
-      #if r then Assume else Skip #;
+      #assume (!r) #;
       r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 2] #;
-      #if r then Skip else Assume #;
+      #assume r #;
       r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 1] #;
-      #if r then Skip else Assume #;
+      #assume r #;
       r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 1] #;
-      #if r then Assume else Skip #;
+      #assume (!r) #;
       Put "Test4 Passed" Vnull #;
       Skip
     .
@@ -681,7 +672,7 @@ Module TEST.
              else
            (#if (tmp0 == 2)
              then Call "add_chunk" [CBR p2 ; CBV (big_chunk 0 random_latest) ; CBV tmp1]
-             else Guarantee)))
+             else #guarantee #false)))
          else
            (* alloc_continuous *)
            Skip
