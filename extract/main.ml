@@ -163,7 +163,9 @@ let main =
   run (eval_program DoubleReturn.program) ;
 
   print_endline "-----------------------------------------------------------" ;
-  run (MultiModuleLocalStateSimple.isem) ;
+  run (MultiModuleLocalStateSimple.isem1) ;
+  print_endline "-----------------------------------------------------------" ;
+  run (MultiModuleLocalStateSimple.isem2) ;
 
   (* print_endline "-----------------------------------------------------------" ;
    * run (eval_program MpoolSeq.TEST.TEST1.program) ; *)

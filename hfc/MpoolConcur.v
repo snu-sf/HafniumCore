@@ -387,7 +387,9 @@ Module TEST.
       ].
 
     Definition isem: itree Event unit :=
-      eval_multimodule [program_to_ModSem program ; LOCK.modsem].
+      eval_multimodule [program_to_ModSem program ; LOCK.modsem]
+      (* eval_multimodule [LOCK.modsem ; program_to_ModSem program] *)
+    .
 
   End TEST2.
 

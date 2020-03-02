@@ -487,8 +487,8 @@ Module MultiModuleLocalStateSimple.
   Definition f_sem: CallExternalE ~> itree (CallExternalE +' Event +' memoizeE) :=
     (fun _ '(CallExternal func_name args) =>
        match args with
-       | [Vnat v] => trigger (SetM v) ;; Ret (Vnull, [])
-       | _ => v <- trigger (GetM) ;; Ret (v, [])
+       | [Vnat v] => trigger EYield ;; trigger (SetM v) ;; Ret (Vnull, [])
+       | _ => trigger EYield ;; v <-  trigger (GetM) ;; Ret (v, [])
        end)
   .
 
@@ -519,24 +519,33 @@ Module MultiModuleLocalStateSimple.
   Definition main r: stmt :=
       (Call "f" [CBV 10]) #;
       (Call "g" []) #;
-      r #:= (Call "f" []) #;
+      Yield #; r #:= (Call "f" []) #;
       #if r == 10 then Skip else Assume #;
+      Debug "passed 1" Vnull #;
       (Call "g" []) #;
-      r #:= (Call "f" []) #;
+      Yield #; r #:= (Call "f" []) #;
       #if r == 10 then Skip else Assume #;
-      r #:= (Call "f" [CBV 20]) #;
+      Debug "passed 2" Vnull #;
+      Yield #; (Call "f" [CBV 20]) #;
       (Call "g" []) #;
+      Yield #; r #:= (Call "f" []) #;
       #if r == 20 then Skip else Assume #;
+      Debug "passed 3" Vnull #;
       Put "Test(MultiModuleLocalStateSimple) passed" Vnull #;
       Skip
   .
   Definition main_function: function := mk_function [] (main "local0").
   Definition main_program: program := [("main", main_function)].
 
-  Definition modsems: list ModSem :=
-    [f_ModSem] ++ List.map program_to_ModSem [main_program ; g_program].
+  Definition modsems1: list ModSem :=
+    (List.map program_to_ModSem [main_program ; g_program]) ++ [f_ModSem]
+  .
+  Definition modsems2: list ModSem :=
+    [f_ModSem] ++ (List.map program_to_ModSem [main_program ; g_program])
+  .
 
-  Definition isem: itree Event unit := eval_multimodule modsems.
+  Definition isem1: itree Event unit := eval_multimodule modsems1.
+  Definition isem2: itree Event unit := eval_multimodule modsems2.
 
 End MultiModuleLocalStateSimple.
 

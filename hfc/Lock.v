@@ -110,13 +110,17 @@ Module LOCK.
          id <- (unwrapN (nth_error args 0 >>= get_id)) ;;
          triggerSyscall "d" "lock-lock looking for: " [Vnat id] ;;
             (* (trigger (LockE id)) >>= unwrapN >>= fun v => Ret (v, []) *)
+
             (* v <- (ITree.iter (fun _ => trigger EYield ;; trigger (TryLockE id)) tt) ;; *)
-            v <- (ITree.iter (fun _ =>
-                                (* triggerSyscall "d" "lock-lock before yield" [Vnull] ;; *)
-                                trigger EYield ;;
-                                (* triggerSyscall "d" "lock-lock after yield" [Vnull] ;; *)
-                                trigger (TryLockE id)) tt) ;;
-            Ret (v, [])
+            (* Ret (v, []) *)
+            v <- trigger (TryLockE id) ;;
+            match v with
+            | inr v => Ret (v, [])
+            | inl _ => Ret (Vnull, [])
+            end
+            (* v <- (ITree.iter (fun _ => *)
+            (*                     trigger EYield ;; *)
+            (*                     trigger (TryLockE id)) tt) ;; *)
             (* v <- ((trigger (TryLockE id)) >>= unwrapN) ;; *)
             (* Ret (v, []) *)
        | _ => triggerNB "Lock-no such function"
@@ -138,7 +142,7 @@ Module LOCK.
   Extract Constant alist_printer =>
   "
   let rec nat_to_int = function | O -> 0 | S n -> succ (nat_to_int n) in
-  fun al -> print_string ""]]] "" ; print_int (nat_to_int (length al)) ; print_string "" "" ; (List.iter (fun kv -> print_int (nat_to_int (fst kv))) al) ; print_endline "" "" "
+  fun al -> print_string ""]]] "" ; print_int (nat_to_int (length al)) ; print_string "" "" ; (List.iter (fun kv -> print_int (nat_to_int (fst kv)) ; print_string "" "") al) ; print_endline "" "" "
   .
 
   Definition handler: LockEvent ~> stateT owned_heap (itree Event) :=
@@ -160,7 +164,7 @@ Module LOCK.
       (* | WHY_ANY_NAME_WORKS_HERE_THIS_IS_WEIRD => Ret ((S ctr, m), ctr) *)
       | InitE v =>
         let m := debug_print alist_printer m in
-        let m' := debug_print alist_printer (Maps.add ctr v m) in
+        let m' := debug_print alist_printer (Maps.add 2020 Vnull (Maps.add ctr v m)) in
         Ret ((S ctr, m'), ctr)
         (* Ret ((S ctr, (Maps.add ctr v m)), ctr) *)
       end

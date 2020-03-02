@@ -909,9 +909,9 @@ Definition HANDLE2: forall mss,
     assert(tl':= @mk_hvec (length mss) tl H0).
     eapply s in tl'.
     eapply ITree.map; try eapply tl'.
-    intro. destruct X. econs.
+    intro. destruct X. inv h. rename l into tl2. econs.
     { unshelve econs.
-      - eapply (hd :: tl).
+      - eapply (hd :: tl2).
       - ss. eauto.
     }
     apply t.
