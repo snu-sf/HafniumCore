@@ -173,7 +173,7 @@ e.g. See if x has even number --> we need something like "MetaIf (var -> P: Prop
 .
 
 Inductive function: Type :=
-  mk_function { locals: list var ; params: list var ; body: stmt }.
+  mk_function { params: list var ; locals: list var ; body: stmt }.
 Definition program: Type := list (string * function).
 
 (* ========================================================================== *)
@@ -1053,4 +1053,10 @@ End InterpImpProperties.
 
 
 (** We now turn to our target language, in file [Asm].v *)
+
+
+Ltac mk_function_tac f params locals :=
+  eapply (mk_function params locals);
+  (let tmp := (apply_list ltac:(apply_list f params) locals) in pose tmp as x ; apply x)
+.
 

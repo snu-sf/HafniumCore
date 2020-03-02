@@ -377,23 +377,21 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
     Store p chunk_list_ofs chunk
   .
 
-  Definition initF: function :=
-    mk_function ["p"] (init "p").
-  Definition init_with_fallbackF: function :=
-    mk_function ["p" ; "fb"] (init_with_fallback "p" "fb").
-  Definition alloc_contiguousF: function :=
-    mk_function ["p" ; "count"] (alloc_contiguous "p" "count" "ret").
-  Definition alloc_contiguous_no_fallbackF: function :=
-    mk_function ["p" ; "count"]
-                (alloc_contiguous_no_fallback "p" "count" "prev" "ret" "new_chunk" "chunk").
-  Definition alloc_contiguous2F: function :=
-    mk_function ["p" ; "count"] (alloc_contiguous2 "p" "count" "ret" "next" "nextp").
-  Definition alloc_contiguous_no_fallback2F: function :=
-    mk_function ["cur" ; "count"]
-                (alloc_contiguous_no_fallback2 "cur" "count" "ret" "next"
-                                               "cur_ofs" "new_cur").
-  Definition add_chunkF: function :=
-    mk_function ["p" ; "begin" ; "size"] (add_chunk "p" "begin" "size" "chunk").
+  Definition initF: function. mk_function_tac init ["p"] ([]: list var). Defined.
+  Definition init_with_fallbackF: function.
+    mk_function_tac init_with_fallback ["p" ; "fb"] ([]: list var). Defined.
+  Definition alloc_contiguousF: function.
+    mk_function_tac alloc_contiguous ["p" ; "count"] ["ret"]. Defined.
+  Definition alloc_contiguous_no_fallbackF: function.
+    mk_function_tac alloc_contiguous_no_fallback
+                    ["p" ; "count"] ["prev" ; "ret" ; "new_chunk" ; "chunk"]. Defined.
+  Definition alloc_contiguous2F: function.
+    mk_function_tac alloc_contiguous2 ["p" ; "count"] ["ret" ; "next" ; "nextp"]. Defined.
+  Definition alloc_contiguous_no_fallback2F: function.
+    mk_function_tac alloc_contiguous_no_fallback2
+                    ["cur" ; "count"] ["ret" ; "next" ; "cur_ofs" ; "new_cur" ]. Defined.
+  Definition add_chunkF: function.
+    mk_function_tac add_chunk ["p" ; "begin" ; "size"] ["chunk"]. Defined.
 
 End MPOOLSEQ.
 
@@ -433,7 +431,8 @@ Module TEST.
         (Put "alloc third; p: " p) #;
         Skip
     .
-    Definition mainF: function := mk_function [] (main "p" "r1" "r2" "r3").
+    Definition mainF: function.
+      mk_function_tac main ([]: list var) ["p" ; "r1" ; "r2" ; "r3"]. Defined.
 
     Definition program: program :=
       [
@@ -453,35 +452,36 @@ Module TEST.
     Definition main
                (p r1 r2 r3: var): stmt :=
       p #:= Vptr None [0: val ; 0: val] #;
-        (* (Put "before init: " p) #; *)
+        (Debug "before init: " p) #;
         Call "init" [CBR p] #;
-        (* (Put "after init: " p) #; *)
+        (Debug "after init: " p) #;
         Call "add_chunk" [CBR p ; CBV (big_chunk 500 10) ; CBV 10] #;
-        (* (Put "add_chunk done: " p) #; *)
+        (Debug "add_chunk done: " p) #;
 
         r1 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
-        (* (Put "alloc first; should succeed: " r1) #; *)
-        (* (Put "alloc first; p: " p) #; *)
+        (Debug "alloc first; should succeed: " r1) #;
+        (Debug "alloc first; p: " p) #;
         #if r1 then Skip else Assume #;
 
         r2 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
-        (* (Put "alloc second; should fail: " r2) #; *)
-        (* (Put "alloc second; p: " p) #; *)
+        (Debug "alloc second; should fail: " r2) #;
+        (Debug "alloc second; p: " p) #;
         #if r2 then Assume else Skip #;
 
         Call "add_chunk" [CBR p ; CBV r1 ; CBV 7] #;
-        (* (Put "add_chunk done" p) #; *)
+        (Debug "add_chunk done" p) #;
 
         r3 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
-        (* (Put "alloc third; should succeed: " r3) #; *)
-        (* (Put "alloc third; p: " p) #; *)
+        (Debug "alloc third; should succeed: " r3) #;
+        (Debug "alloc third; p: " p) #;
         #if r3 then Skip else Assume #;
 
 
         Put "Test2 Passed" Vnull #;
         Skip
     .
-    Definition mainF: function := mk_function [] (main "p" "r1" "r2" "r3").
+    Definition mainF: function.
+      mk_function_tac main ([]: list var) ["p" ; "r1" ; "r2" ; "r3"]. Defined.
 
     Definition program: program :=
       [
@@ -525,7 +525,8 @@ Module TEST.
         Put "Test3 Passed" Vnull #;
         Skip
     .
-    Definition mainF: function := mk_function [] (main "p" "r1" "r2" "r3").
+    Definition mainF: function.
+      mk_function_tac main ([]: list var) ["p" ; "r1" ; "r2" ; "r3"]. Defined.
 
     Definition program: program :=
       [
@@ -598,7 +599,8 @@ Module TEST.
       Put "Test4 Passed" Vnull #;
       Skip
     .
-    Definition mainF: function := mk_function [] (main "p0" "p1" "p2" "r").
+    Definition mainF: function.
+      mk_function_tac main ([]: list var) ["p" ; "r1" ; "r2" ; "r3"]. Defined.
 
     Definition program: program :=
       [

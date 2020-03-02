@@ -57,7 +57,22 @@ Set Implicit Arguments.
 
 
 
+Ltac apply_list f ls :=
+  let rec go f ls :=
+      match ls with
+      | nil => f
+      | ?hd :: ?tl => go (f hd) tl
+                         (* constr:(go (f hd) tl) *)
+      end
+  in
+  (* go f ls *)
+  ltac:(let d' := go f ls in pose d' as b ; apply b)
+.
 
+Variable d: nat -> nat -> nat -> nat.
+Definition bb: nat.
+  (apply_list d [0 ; 1 ; 2]).
+Qed.
 
 Module LoadStore.
 
@@ -81,7 +96,7 @@ Module LoadStore.
                                                                                 Skip
   .
 
-  Definition function: function := mk_function [] (main "x" "sum").
+  Definition function: function. mk_function_tac main ([]: list var) ["x" ; "sum"]. Defined.
 
   Definition program: program := [("main", function)].
 
@@ -118,7 +133,7 @@ Module Rec.
       Return r
   .
 
-  Definition f_function: function := mk_function ["x"] (f "x" "local0" "local1").
+  Definition f_function: function. mk_function_tac f ["x"] ["local0" ; "local1"]. Defined.
 
   Definition main x r: stmt :=
     x #:= 10 #;
@@ -126,7 +141,8 @@ Module Rec.
       #put r
   .
 
-  Definition main_function: function := mk_function [] (main "local0" "local1").
+  Definition main_function: function.
+    mk_function_tac main ([]:list var) ["local0" ; "local1"]. Defined.
 
   Definition program: program := [("main", main_function) ;
                                     ("f", f_function)].
@@ -159,8 +175,8 @@ Module MutRec.
       Return r
   .
 
-  Definition f_function: function := mk_function ["x"] (f "x" "local0" "local1").
-  Definition g_function: function := mk_function ["x"] (g "x" "local0" "local1").
+  Definition f_function: function. mk_function_tac f ["x"] ["local0" ; "local1"]. Defined.
+  Definition g_function: function. mk_function_tac g ["x"] ["local0" ; "local1"]. Defined.
 
   Definition program: program := [("main", Rec.main_function) ;
                                     ("f", f_function) ;
@@ -172,7 +188,7 @@ End MutRec.
 (* YJ: if we just use "r", not "unused", something weird will happen *)
 (* TODO: address it better *)
 Module Move.
-  Definition f (x y accu unused: var): stmt :=
+  Definition f (x accu y unused: var): stmt :=
     (#if x
       then (y #:= (x - 1) #;
               (* Put "before call" accu #; *)
@@ -195,10 +211,10 @@ Module Move.
       #put accu
   .
 
-  Definition f_function: function := mk_function ["x" ; "accu"]
-                                                      (f "x" "local0" "accu" "local1").
-  Definition main_function: function :=
-    mk_function [] (main "local0" "local1" "local2").
+  Definition f_function: function. mk_function_tac f ["x" ; "accu"]
+                                                   ["local0" ; "local1"]. Defined.
+  Definition main_function: function.
+    mk_function_tac main ([]:list var) ["local0" ; "local1" ; "local2"]. Defined.
 
   Definition program: program := [("main", main_function) ;
                                     ("f", f_function)].
@@ -233,8 +249,8 @@ Module CoqCode.
         else #put 666)
   .
 
-  Definition main_function: function :=
-    mk_function [] (main "local0").
+  Definition main_function: function.
+    mk_function_tac main ([]: list var) ["local0"]. Defined.
 
   Definition program: program := [("main", main_function)].
 
@@ -273,7 +289,7 @@ Module Control.
      Return ret
   .
 
-  Definition f_function: function := mk_function ["ctrl"] (f "ctrl" "local0" "local1").
+  Definition f_function: function. mk_function_tac f ["ctrl"] ["local0" ; "local1"]. Defined.
 
   Definition main r: stmt :=
     r #:= (Call "f" [CBV 0]) #; #if r == 0 then Skip else Assume #;
@@ -283,9 +299,7 @@ Module Control.
     Skip
   .
 
-  Definition main_function: function :=
-    mk_function [] (main "local0")
-  .
+  Definition main_function: function. mk_function_tac main ([]: list var) ["local0"]. Defined.
 
   Definition program: program := [("main", main_function) ;
                                     ("f", f_function)].
@@ -301,7 +315,7 @@ Module DoubleReturn.
     Return 0 #; Return 1
   .
 
-  Definition f_function: function := mk_function [] f.
+  Definition f_function: function. mk_function_tac f ([]: list var) ([]: list var). Defined.
 
   Definition main r :=
     r #:= (Call "f" []) #;
@@ -309,9 +323,7 @@ Module DoubleReturn.
     Skip
   .
 
-  Definition main_function: function :=
-    mk_function [] (main "local0")
-  .
+  Definition main_function: function. mk_function_tac main ([]: list var) ["local0"]. Defined.
 
   Definition program: program := [("main", main_function) ;
                                     ("f", f_function)].
@@ -335,9 +347,8 @@ Module MultiCore.
     Skip
   .
 
-  Definition main_function n: function :=
-    mk_function [] (main n)
-  .
+  Definition main_function (n: nat): function.
+    mk_function_tac (main n) ([]: list var) ([]: list var). Defined.
 
   Definition program n: program := [("main", main_function n) ].
 
@@ -372,8 +383,8 @@ Module MultiModule.
     Return r
   .
 
-  Definition f_function: function := mk_function ["x"] (f "x" "local0" "local1").
-  Definition g_function: function := mk_function ["x"] (g "x" "local0" "local1").
+  Definition f_function: function. mk_function_tac f ["x"] ["local0" ; "local1"]. Defined.
+  Definition g_function: function. mk_function_tac g ["x"] ["local0" ; "local1"]. Defined.
 
   Definition main_program: program := [("main", Rec.main_function)].
   Definition f_program: program := [("f", f_function)].
@@ -394,7 +405,7 @@ Module MultiModuleLocalState.
   | GetM (k: nat): memoizeE (option nat)
   | SetM (k: nat) (v: nat): memoizeE unit
   .
-  Definition f_sem: CallExternalE ~> itree (CallExternalE +' Event +' memoizeE) :=
+  Definition f_sem: CallExternalE ~> itree (CallExternalE +' memoizeE +' GlobalE +' Event) :=
     (fun _ '(CallExternal func_name args) =>
        match args with
        | [Vnat k] =>
@@ -424,7 +435,7 @@ Module MultiModuleLocalState.
       then Some v
       else oh x
   .
-  Definition f_handler: memoizeE ~> stateT f_owned_heap (itree Event) :=
+  Definition f_handler: memoizeE ~> stateT f_owned_heap (itree (GlobalE +' Event)) :=
     fun T e oh =>
       match e with
       | GetM k => Ret (oh, oh k)
@@ -450,7 +461,7 @@ Module MultiModuleLocalState.
     #;
     Return r
   .
-  Definition g_function: function := mk_function ["x"] (g "x" "local0" "local1").
+  Definition g_function: function. mk_function_tac g ["x"] ["local0" ; "local1"]. Defined.
   Definition g_program: program := [("g", g_function)].
 
   Definition main r: stmt :=
@@ -480,7 +491,8 @@ Module MultiModuleLocalState.
 
       Skip
   .
-  Definition main_function: function := mk_function [] (main "local0").
+  Definition main_function: function.
+    mk_function_tac main ([]: list var) ["local0"]. Defined.
   Definition main_program: program := [("main", main_function)].
 
   Definition modsems: list ModSem :=
@@ -499,7 +511,7 @@ Module MultiModuleLocalStateSimple.
   | GetM: memoizeE (val)
   | SetM (v: val): memoizeE unit
   .
-  Definition f_sem: CallExternalE ~> itree (CallExternalE +' Event +' memoizeE) :=
+  Definition f_sem: CallExternalE ~> itree (CallExternalE +' memoizeE +' GlobalE +' Event) :=
     (fun _ '(CallExternal func_name args) =>
        match args with
        | [Vnat v] => trigger EYield ;; trigger (SetM v) ;; Ret (Vnull, [])
@@ -509,7 +521,7 @@ Module MultiModuleLocalStateSimple.
 
   Definition f_owned_heap: Type := val.
 
-  Definition f_handler: memoizeE ~> stateT f_owned_heap (itree Event) :=
+  Definition f_handler: memoizeE ~> stateT f_owned_heap (itree (GlobalE +' Event)) :=
     fun T e oh =>
       match e with
       | GetM => Ret (oh, oh)
@@ -528,7 +540,7 @@ Module MultiModuleLocalStateSimple.
   Definition g: stmt :=
     Return 10
   .
-  Definition g_function: function := mk_function [] (g).
+  Definition g_function: function. mk_function_tac g ([]: list var) ([]: list var). Defined.
   Definition g_program: program := [("g", g_function)].
 
   Definition main r: stmt :=
@@ -549,7 +561,8 @@ Module MultiModuleLocalStateSimple.
       Put "Test(MultiModuleLocalStateSimple) passed" Vnull #;
       Skip
   .
-  Definition main_function: function := mk_function [] (main "local0").
+  Definition main_function: function.
+    mk_function_tac main ([]:list var) ["local0"]. Defined.
   Definition main_program: program := [("main", main_function)].
 
   Definition modsems1: list ModSem :=
