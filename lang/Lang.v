@@ -339,13 +339,13 @@ Section Denote.
   Print Instances Applicative.
 
   Definition triggerGetVar (n: var): itree eff val :=
-    if existsb (string_dec n) func.(locals)
+    if existsb (string_dec n) (func.(params) ++ func.(locals))
     then trigger (GetLvar n)
     else trigger (GetGvar n)
   .
 
   Definition triggerSetVar (n: var) (v: val): itree eff unit :=
-    if existsb (string_dec n) func.(locals)
+    if existsb (string_dec n) (func.(params) ++ func.(locals))
     then trigger (SetLvar n v)
     else trigger (SetGvar n v)
   .
