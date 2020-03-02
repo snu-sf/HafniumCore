@@ -478,6 +478,69 @@ End MultiModuleLocalState.
 
 
 
+Module MultiModuleLocalStateSimple.
+
+  Inductive memoizeE: Type -> Type :=
+  | GetM: memoizeE (val)
+  | SetM (v: val): memoizeE unit
+  .
+  Definition f_sem: CallExternalE ~> itree (CallExternalE +' Event +' memoizeE) :=
+    (fun _ '(CallExternal func_name args) =>
+       match args with
+       | [Vnat v] => trigger (SetM v) ;; Ret (Vnull, [])
+       | _ => v <- trigger (GetM) ;; Ret (v, [])
+       end)
+  .
+
+  Definition f_owned_heap: Type := val.
+
+  Definition f_handler: memoizeE ~> stateT f_owned_heap (itree Event) :=
+    fun T e oh =>
+      match e with
+      | GetM => Ret (oh, oh)
+      | SetM v => Ret (v, tt)
+      end
+  .
+  Definition f_ModSem: ModSem :=
+    mk_ModSem
+      (fun s => string_dec s "f")
+      Vnull
+      memoizeE
+      f_handler
+      f_sem
+  .
+
+  Definition g: stmt :=
+    Return 10
+  .
+  Definition g_function: function := mk_function [] (g).
+  Definition g_program: program := [("g", g_function)].
+
+  Definition main r: stmt :=
+      (Call "f" [CBV 10]) #;
+      (Call "g" []) #;
+      r #:= (Call "f" []) #;
+      #if r == 10 then Skip else Assume #;
+      (Call "g" []) #;
+      r #:= (Call "f" []) #;
+      #if r == 10 then Skip else Assume #;
+      r #:= (Call "f" [CBV 20]) #;
+      (Call "g" []) #;
+      #if r == 20 then Skip else Assume #;
+      Put "Test(MultiModuleLocalStateSimple) passed" Vnull #;
+      Skip
+  .
+  Definition main_function: function := mk_function [] (main "local0").
+  Definition main_program: program := [("main", main_function)].
+
+  Definition modsems: list ModSem :=
+    [f_ModSem] ++ List.map program_to_ModSem [main_program ; g_program].
+
+  Definition isem: itree Event unit := eval_multimodule modsems.
+
+End MultiModuleLocalStateSimple.
+
+
 
 
 Section RUN.

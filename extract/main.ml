@@ -8,7 +8,7 @@ open String
 
 
 
-open CategoryKleisli
+(* open CategoryKleisli *)
 open CategoryOps
 open Datatypes
 open FMapAList
@@ -161,6 +161,9 @@ let main =
 
   print_endline "-----------------------------------------------------------" ;
   run (eval_program DoubleReturn.program) ;
+
+  print_endline "-----------------------------------------------------------" ;
+  run (MultiModuleLocalStateSimple.isem) ;
 
   (* print_endline "-----------------------------------------------------------" ;
    * run (eval_program MpoolSeq.TEST.TEST1.program) ; *)

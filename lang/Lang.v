@@ -489,7 +489,9 @@ Section Denote.
       while the [inl tt] says to continue. *)
 
   Definition while (step: itree eff (unit + (control * val))): itree eff (control * val) :=
-    iter (C := Kleisli _) (fun _ => step) tt.
+    (* iter (C := Kleisli _) (fun _ => step) tt *)
+    ITree.iter (fun _ => step) tt
+  .
 
   (** The meaning of Imp statements is now easy to define.  They are all
       straightforward, except for [While], which uses our new [while] combinator
