@@ -105,7 +105,7 @@ Module LOCK.
         else case_other
   .
 
-  Definition sem: CallExternalE ~> itree (CallExternalE +' Event +' LockEvent) :=
+  Definition sem: CallExternalE ~> itree (CallExternalE +' LockEvent +' GlobalE +' Event) :=
     (fun _ '(CallExternal func_name args) =>
        match case_analysis func_name with
        | case_new =>
@@ -204,7 +204,7 @@ Module LOCK.
   (* Goal (Maps.lookup 2 (Maps.add 1 10 (Maps.empty (Map:=Map_alist _ _)))) = Some 10. ss. Abort. *)
   Local Instance MyMap: (Map nat val (alist nat val)) := Map_alist Nat.RelDec_eq val.
 
-  Definition handler: LockEvent ~> stateT owned_heap (itree Event) :=
+  Definition handler: LockEvent ~> stateT owned_heap (itree (GlobalE +' Event)) :=
     (* State.interp_state  *)
     fun _ e '(ctr, m) =>
       match e with
