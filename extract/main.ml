@@ -42,21 +42,38 @@ let shuffle: 'a list -> 'a list = fun xs ->
 
 let cl2s = fun cl -> String.concat "" (List.map (String.make 1) cl)
 
-let print_val =
-  let rec go v =
-    match v with
-    | Vnat n -> print_string ((string_of_int (Nat.to_int n)) ^ " ")
-    | Vptr(paddr, cts) ->
-       (* (print_string "[" ; List.iter go cts ; print_string "]") *)
-       let paddr = "(" ^ (match paddr with
-                          | Some paddr -> string_of_int (Nat.to_int paddr)
-                          | None -> "N") ^ ")"
-       in
-       if length cts == Nat.of_int 0
-       then (print_string (paddr ^ ". "))
-       else (print_string (paddr ^ "[") ; List.iter go cts ; print_string "]")
-  in
-  fun v -> go v ; print_endline " "
+let rec string_of_val v =
+  match v with
+  | Vnat n -> (string_of_int (Nat.to_int n)) ^ " "
+  | Vptr(paddr, cts) ->
+     let paddr = "(" ^ (match paddr with
+                        | Some paddr -> string_of_int (Nat.to_int paddr)
+                        | None -> "N") ^ ")"
+     in
+     if length cts == Nat.of_int 0
+     then paddr ^ ". "
+     else paddr ^ "[" ^
+            (List.fold_left (fun s i -> s ^ " " ^ string_of_val i) "" cts) ^ "]"
+
+let print_val = fun v -> print_endline (string_of_val v)
+
+let string_of_vals vs = List.fold_left (fun s i -> s ^ " " ^ string_of_val i) "" vs
+
+(* let print_val =
+ *   let rec go v =
+ *     match v with
+ *     | Vnat n -> print_string ((string_of_int (Nat.to_int n)) ^ " ")
+ *     | Vptr(paddr, cts) ->
+ *        (\* (print_string "[" ; List.iter go cts ; print_string "]") *\)
+ *        let paddr = "(" ^ (match paddr with
+ *                           | Some paddr -> string_of_int (Nat.to_int paddr)
+ *                           | None -> "N") ^ ")"
+ *        in
+ *        if length cts == Nat.of_int 0
+ *        then (print_string (paddr ^ ". "))
+ *        else (print_string (paddr ^ "[") ; List.iter go cts ; print_string "] ")
+ *   in
+ *   fun v -> go v ; print_endline " " *)
 
 let handle_Event = fun e k ->
   match e with
@@ -64,8 +81,10 @@ let handle_Event = fun e k ->
   | EUB msg -> failwith ("UB:" ^ (cl2s msg))
   | ESyscall ('p'::[], msg, v::[]) ->
      print_string (cl2s msg) ; print_val v ; k (Obj.magic ())
-  | ESyscall ('d'::[], msg, v::[]) ->
-     print_string "<DEBUG> " ; print_string (cl2s msg) ; print_val v ; k (Obj.magic ())
+  | ESyscall ('d'::[], msg, vs) ->
+     print_string "<DEBUG> " ; print_string (cl2s msg) ;
+     print_endline (string_of_vals vs) ;
+     k (Obj.magic ())
   | ESyscall ('g'::[], _,   []) ->
      let x = read_int() in k (Obj.magic (Vnat (Nat.of_int x)))
   | ESyscall (cl,      msg, vs) ->
@@ -180,12 +199,12 @@ let main =
   run (eval_program MpoolSeq.TEST.TEST4.program) ;
 
   print_endline "-----------------------------------------------------------" ;
+  run (MpoolConcur.TEST.TEST1.isem) ;
+
+  print_endline "-----------------------------------------------------------" ;
   run (MpoolConcur.TEST.TEST2.isem) ;
 
   print_endline "-----------------------------------------------------------" ;
   run (MpoolConcur.TEST.TEST3.isem) ;
-
-  print_endline "-----------------------------------------------------------" ;
-  run (MpoolConcur.TEST.TEST4.isem) ;
 
   ()

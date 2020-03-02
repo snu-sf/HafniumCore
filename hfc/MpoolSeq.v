@@ -157,7 +157,7 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
     #;
     #while Vtrue
      do (
-       Put "looping alloc_contiguous" Vnull #;
+       Debug "looping alloc_contiguous" Vnull #;
        ret #:= (Call "alloc_contiguous_no_fallback" [CBR p ; CBV count]) #;
        #if (ret)
        then (Return ret)
@@ -249,7 +249,7 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
      else Guarantee
     #;
     prev #:= (#& (Load p chunk_list_ofs)) #;
-    Put "(A)prev_is: " prev #;
+    Debug "(A)prev_is: " prev #;
     #while prev
      do (
        chunk #:= (#* prev) #;
@@ -259,7 +259,7 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
        #if (count <= (Load chunk limit_ofs))
         then
           (
-           (Put "If1-limit: " (Load chunk limit_ofs)) #;
+           (Debug "If1-limit: " (Load chunk limit_ofs)) #;
            #if count == (Load chunk limit_ofs)
             then (
                 Store prev 0 (Load chunk next_chunk_ofs) (** should write to p **)
@@ -271,20 +271,20 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
               )
            #;
            (* ret = (void * )start; *) (** code doesn't specify the size, but we need too **)
-           Put "(A)chunk_is: " chunk #;
+           Debug "(A)chunk_is: " chunk #;
            ret #:= (SubPointerTo chunk (count * entry_size)) #;
-           Put "(A)ret_is: " ret #;
+           Debug "(A)ret_is: " ret #;
            Break
           )
         else
           (
-            (Put "Else1-limit: " (Load chunk limit_ofs)) #;
+            (Debug "Else1-limit: " (Load chunk limit_ofs)) #;
             (prev #:= #& (Load chunk next_chunk_ofs)) #;
-            (Put "Else1-prev: " prev) #;
+            (Debug "Else1-prev: " prev) #;
             Skip
           )
      ) #;
-    Put "no_fallback returns: " ret #;
+    Debug "no_fallback returns: " ret #;
     Return ret
   .
 
@@ -296,16 +296,16 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
     cur_ofs #:= (Load cur limit_ofs) #;
     #if (count <= cur_ofs)
      then (
-           (* (Put "If-limit: " cur_ofs) #; *)
+           (* (Debug "If-limit: " cur_ofs) #; *)
            #if count == cur_ofs
             then (
-                (* (Put "If-If: " Vnull) #; *)
+                (* (Debug "If-If: " Vnull) #; *)
                 ret #:= (SubPointerTo cur (count * entry_size)) #;
                 cur #:= (Load cur next_chunk_ofs) #;
                 Return ret
               )
             else (
-                (* (Put "If-Else: " Vnull) #; *)
+                (* (Debug "If-Else: " Vnull) #; *)
                 new_cur #:= (SubPointerFrom cur (count * entry_size)) #;
                 Store new_cur next_chunk_ofs (Load cur next_chunk_ofs) #;
                 Store new_cur limit_ofs (cur_ofs - count) #;
@@ -315,7 +315,7 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
               )
           )
      else (
-         (* (Put "Else-limit: " cur_ofs) #; *)
+         (* (Debug "Else-limit: " cur_ofs) #; *)
          next #:= (Load cur next_chunk_ofs) #;
          ret #:= (Call "alloc_contiguous_no_fallback2" [CBR next ; CBV count]) #;
          Store cur next_chunk_ofs next #;

@@ -97,27 +97,30 @@ Module LOCK.
          id <- trigger (InitE v) ;;
          Ret (Vnat id, [])
        | case_unlock =>
-         triggerSyscall "d" "lock-unlock" [Vnull] ;;
          id <- (unwrapN (nth_error args 0 >>= get_id)) ;;
             v <- (unwrapN (nth_error args 1)) ;;
+            triggerSyscall "d" "lock-unlock <--- " [Vnat id ; v] ;;
             trigger (UnlockE id v) ;;
             trigger EYield ;;
             Ret (Vnodef, [])
        | case_lock =>
-         triggerSyscall "d" "lock-lock" [Vnull] ;;
+         (* triggerSyscall "d" "lock-lock" [Vnull] ;; *)
          (* trigger EYield ;; *)
          (* id <- (unwrapN (nth_error args 0) >>= (unwrapN <*> get_id)) ;; *)
          id <- (unwrapN (nth_error args 0 >>= get_id)) ;;
-         triggerSyscall "d" "lock-lock looking for: " [Vnat id] ;;
+         (* triggerSyscall "d" "lock-lock looking for: " [Vnat id] ;; *)
             (* (trigger (LockE id)) >>= unwrapN >>= fun v => Ret (v, []) *)
 
-            (* v <- (ITree.iter (fun _ => trigger EYield ;; trigger (TryLockE id)) tt) ;; *)
-            (* Ret (v, []) *)
-            v <- trigger (TryLockE id) ;;
-            match v with
-            | inr v => Ret (v, [])
-            | inl _ => Ret (Vnull, [])
-            end
+            v <- (ITree.iter (fun _ => trigger EYield ;; trigger (TryLockE id)) tt) ;;
+            triggerSyscall "d" "lock-lock   ---> " [Vnat id ; v] ;;
+            Ret (v, [])
+            (* v <- trigger (TryLockE id) ;; *)
+            (* match v with *)
+            (* | inr v => Ret (v, []) *)
+            (* | inl _ => Ret (Vnull, []) *)
+            (* end *)
+
+
             (* v <- (ITree.iter (fun _ => *)
             (*                     trigger EYield ;; *)
             (*                     trigger (TryLockE id)) tt) ;; *)
@@ -134,7 +137,8 @@ Module LOCK.
   Definition debug_print (A: Type) (printer: A -> unit) (content: A): A :=
     let unused := printer content in content.
   Extract Constant debug_print =>
-  "fun printer content -> printer content ; content"
+  (* "fun printer content -> printer content ; content" *)
+  "fun printer content -> content"
   .
   Variable alist_printer: alist ident val -> unit.
   (* Variable dummy_client: unit -> unit. *)
@@ -164,7 +168,7 @@ Module LOCK.
       (* | WHY_ANY_NAME_WORKS_HERE_THIS_IS_WEIRD => Ret ((S ctr, m), ctr) *)
       | InitE v =>
         let m := debug_print alist_printer m in
-        let m' := debug_print alist_printer (Maps.add 2020 Vnull (Maps.add ctr v m)) in
+        let m' := debug_print alist_printer (Maps.add ctr v m) in
         Ret ((S ctr, m'), ctr)
         (* Ret ((S ctr, (Maps.add ctr v m)), ctr) *)
       end

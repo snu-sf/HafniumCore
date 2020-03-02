@@ -43,9 +43,9 @@ Separate Extraction
          MpoolSeq.TEST.TEST3.program
          MpoolSeq.TEST.TEST4.program
 
+         MpoolConcur.TEST.TEST1.isem
          MpoolConcur.TEST.TEST2.isem
          MpoolConcur.TEST.TEST3.isem
-         MpoolConcur.TEST.TEST4.isem
 
          LangTest.round_robin
          LangTest.run_till_yield
