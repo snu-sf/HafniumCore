@@ -471,47 +471,35 @@ Module TEST.
 
   Module TEST3.
 
-    Definition main
-               (p0 p1 p2 r: var): stmt :=
-      (* p0 #:= Vptr None [0: val ; 0: val] #; *)
-      (* p1 #:= Vptr None [0: val ; 0: val] #; *)
-      (* p2 #:= Vptr None [0: val ; 0: val] #; *)
-      (* Call "init" [CBR p2] #; *)
-      (* Call "init_with_fallback" [CBR p1 ; CBV p2] #; *)
-      (* Call "init_with_fallback" [CBR p0 ; CBV p1] #; *)
-      
-      (* Call "add_chunk" [CBR p0 ; CBV (big_chunk 500  5 ) ; CBV  5] #; *)
-      (* Call "add_chunk" [CBR p1 ; CBV (big_chunk 1500 15) ; CBV 15] #; *)
-      (* Call "add_chunk" [CBR p2 ; CBV (big_chunk 2500 10) ; CBV 10] #; *)
+    (*** two tests with different add_chunk order ***)
 
-      (* r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 5] #; *)
-      (* #if r then Skip else Assume #; *)
-      (* Call "alloc_contiguous2" [CBR p0 ; CBV 10] #; *)
-      (* #if r then Skip else Assume #; *)
-      (* Call "alloc_contiguous2" [CBR p0 ; CBV 15] #; *)
-      (* #if r then Assume else Skip #; *)
-      (* Call "alloc_contiguous2" [CBR p0 ; CBV 5] #; *)
-      (* #if r then Skip else Assume #; *)
-      (* Call "alloc_contiguous2" [CBR p0 ; CBV 10] #; *)
-      (* #if r then Skip else Assume #; *)
-      (* Call "alloc_contiguous2" [CBR p0 ; CBV 5] #; *)
-      (* #if r then Skip else Assume #; *)
-      (* Skip *)
+    Definition main1
+               (p0 p1 p2 r: var): stmt :=
       p0 #:= Vptr None [0: val ; 0: val ; 0: val ] #;
       p1 #:= Vptr None [0: val ; 0: val ; 0: val ] #;
       p2 #:= Vptr None [0: val ; 0: val ; 0: val ] #;
+      (* Call "init" [CBR p2] #; *)
+      (* Call "add_chunk" [CBR p2 ; CBV (big_chunk 2500 2) ; CBV 2] #; *)
+      (* Debug "p2:                    " p2 #; *)
+
+      (* Call "init_with_fallback" [CBR p1 ; CBV p2] #; *)
+      (* Debug "p1:                    " p1 #; *)
+      (* Call "add_chunk" [CBR p1 ; CBV (big_chunk 1500 3) ; CBV 3] #; *)
+      (* Debug "p1:                    " p1 #; *)
+
+      (* Call "init_with_fallback" [CBR p0 ; CBV p1] #; *)
+      (* Call "add_chunk" [CBR p0 ; CBV (big_chunk 500  1) ; CBV 1] #; *)
+      (* Debug "p0:                    " p0 #; *)
       Call "init" [CBR p2] #;
-      Call "add_chunk" [CBR p2 ; CBV (big_chunk 2500 2) ; CBV 2] #;
-      Debug "p2:                    " p2 #;
-
       Call "init_with_fallback" [CBR p1 ; CBV p2] #;
-      Debug "p1:                    " p1 #;
-      Call "add_chunk" [CBR p1 ; CBV (big_chunk 1500 3) ; CBV 3] #;
-      Debug "p1:                    " p1 #;
-
       Call "init_with_fallback" [CBR p0 ; CBV p1] #;
+      Call "add_chunk" [CBR p2 ; CBV (big_chunk 2500 2) ; CBV 2] #;
+      Call "add_chunk" [CBR p1 ; CBV (big_chunk 1500 3) ; CBV 3] #;
       Call "add_chunk" [CBR p0 ; CBV (big_chunk 500  1) ; CBV 1] #;
+      Debug "p2:                    " p2 #;
+      Debug "p1:                    " p1 #;
       Debug "p0:                    " p0 #;
+
 
 
       Debug "" Vnull #;
@@ -539,12 +527,66 @@ Module TEST.
       Put "Test3 Passed" Vnull #;
       Skip
     .
-    Definition mainF: function.
-      mk_function_tac main ([]: list var) ["p" ; "r1" ; "r2" ; "r3"]. Defined.
+    Definition main1F: function.
+      mk_function_tac main1 ([]: list var) ["p" ; "r1" ; "r2" ; "r3"]. Defined.
 
-    Definition program: program :=
+    Definition main2
+               (p0 p1 p2 r: var): stmt :=
+      p0 #:= Vptr None [0: val ; 0: val ; 0: val ] #;
+      p1 #:= Vptr None [0: val ; 0: val ; 0: val ] #;
+      p2 #:= Vptr None [0: val ; 0: val ; 0: val ] #;
+      Call "init" [CBR p2] #;
+      Call "init_with_fallback" [CBR p1 ; CBV p2] #;
+      Call "init_with_fallback" [CBR p0 ; CBV p1] #;
+      Call "add_chunk" [CBR p0 ; CBV (big_chunk 500  1) ; CBV 1] #;
+      Call "add_chunk" [CBR p1 ; CBV (big_chunk 1500 3) ; CBV 3] #;
+      Call "add_chunk" [CBR p2 ; CBV (big_chunk 2500 2) ; CBV 2] #;
+      Debug "p2:                    " p2 #;
+      Debug "p1:                    " p1 #;
+      Debug "p0:                    " p0 #;
+
+
+
+      Debug "" Vnull #;
+      Debug "INIT DONE" Vnull #;
+      Debug "" Vnull #;
+
+      Debug "p0:                    " p0 #;
+      r #:= Call "alloc_contiguous" [CBR p0 ; CBV 1] #;
+      #if r then Skip else Assume #;
+      Debug "p0:                    " p0 #;
+      r #:= Call "alloc_contiguous" [CBR p0 ; CBV 2] #;
+      #if r then Skip else Assume #;
+      Debug "p0:                    " p0 #;
+      r #:= Call "alloc_contiguous" [CBR p0 ; CBV 3] #;
+      #if r then Assume else Skip #;
+      Debug "p0:                    " p0 #;
+      r #:= Call "alloc_contiguous" [CBR p0 ; CBV 2] #;
+      #if r then Skip else Assume #;
+      Debug "p0:                    " p0 #;
+      r #:= Call "alloc_contiguous" [CBR p0 ; CBV 1] #;
+      #if r then Skip else Assume #;
+      Debug "p0:                    " p0 #;
+      r #:= Call "alloc_contiguous" [CBR p0 ; CBV 1] #;
+      #if r then Assume else Skip #;
+      Put "Test3 Passed" Vnull #;
+      Skip
+    .
+    Definition main2F: function.
+      mk_function_tac main2 ([]: list var) ["p" ; "r1" ; "r2" ; "r3"]. Defined.
+
+    Definition program1: program :=
       [
-        ("main", mainF) ;
+        ("main", main1F) ;
+          ("init", initF) ;
+          ("init_with_fallback", init_with_fallbackF) ;
+          ("alloc_contiguous", alloc_contiguousF) ;
+          ("alloc_contiguous_no_fallback", alloc_contiguous_no_fallbackF) ;
+          ("add_chunk", add_chunkF)
+      ].
+    Definition program2: program :=
+      [
+        ("main", main2F) ;
           ("init", initF) ;
           ("init_with_fallback", init_with_fallbackF) ;
           ("alloc_contiguous", alloc_contiguousF) ;
@@ -552,8 +594,10 @@ Module TEST.
           ("add_chunk", add_chunkF)
       ].
 
-    Definition isem: itree Event unit :=
-      eval_multimodule [program_to_ModSem program ; LOCK.modsem].
+    Definition isem1: itree Event unit :=
+      eval_multimodule [program_to_ModSem program1 ; LOCK.modsem].
+    Definition isem2: itree Event unit :=
+      eval_multimodule [program_to_ModSem program2 ; LOCK.modsem].
 
   End TEST3.
 

@@ -222,6 +222,7 @@ let main =
   run (MpoolConcur.TEST.TEST2.isem) ;
 
   print_endline "-----------------------------------------------------------" ;
-  run (MpoolConcur.TEST.TEST3.isem) ;
+  run (MpoolConcur.TEST.TEST3.isem1) ;
+  run (MpoolConcur.TEST.TEST3.isem2) ;
 
   ()
