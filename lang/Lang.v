@@ -113,6 +113,7 @@ Inductive expr : Type :=
 | Load (_: var) (_: expr)
 | CoqCode (_: list expr) (P: list val -> val)
 | Put (msg: string) (e: expr)
+| Debug (msg: string) (e: expr)
 | Get
 | Call (func_name: string) (params: list (var + expr))
 | Ampersand (_: expr)
@@ -372,6 +373,8 @@ Section Denote.
     | CoqCode es P => vs <- mapT (denote_expr) es ;; ret (P vs)
     | Put msg e => v <- denote_expr e ;;
                  triggerSyscall "p" msg [v] ;; Ret (Vnodef)
+    | Debug msg e => v <- denote_expr e ;;
+                       triggerSyscall "d" msg [v] ;; Ret (Vnodef)
     | Get => triggerSyscall "g" "" []
     | Call func_name params =>
       (* | Call retv_name func_name arg_names => *)

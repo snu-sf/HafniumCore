@@ -32,7 +32,7 @@ Require Import Coqlib sflib.
 
 
 (* From HafniumCore *)
-Require Import Lang.
+Require Import Lang Lock.
 Import ImpNotations.
 Local Open Scope expr_scope.
 Local Open Scope stmt_scope.
@@ -40,141 +40,6 @@ Local Open Scope stmt_scope.
 
 
 Set Implicit Arguments.
-
-
-
-
-
-
-
-(* From ITree Require Import *)
-(*      Events.MapDefault. *)
-
-From ExtLib Require Import
-     Core.RelDec
-     Structures.Maps
-     Data.Map.FMapAList.
-
-
-
-Module LOCK.
-
-  Definition ident := nat.
-
-  Inductive LockEvent: Type -> Type :=
-  | TryLockE (id: ident): LockEvent (unit + val) (* inl: is already running, inr: not *)
-  | UnlockE (id: ident) (v: val): LockEvent unit
-  | InitE (v: val): LockEvent ident
-  .
-
-  Definition get_id (v: val): option ident :=
-    match v with
-    | Vnat n => Some n
-    | _ => None
-    end
-  .
-
-  Inductive case: Type :=
-  | case_init
-  | case_unlock
-  | case_lock
-  | case_other
-  .
-
-  Definition case_analysis (func_name: string): case :=
-    if rel_dec func_name "unlock"
-    then case_unlock
-    else
-      if rel_dec func_name "lock"
-      then case_lock
-      else
-        if rel_dec func_name "init"
-        then case_lock
-        else case_other
-  .
-
-  Definition sem: CallExternalE ~> itree (CallExternalE +' Event +' LockEvent) :=
-    (fun _ '(CallExternal func_name args) =>
-       match case_analysis func_name with
-       | case_init =>
-         v <- (unwrapN (nth_error args 0)) ;;
-         id <- trigger (InitE v) ;;
-         Ret (Vnat id, [])
-       | case_unlock =>
-         id <- (unwrapN (nth_error args 0 >>= get_id)) ;;
-            v <- (unwrapN (nth_error args 1)) ;;
-            trigger (UnlockE id v) ;;
-            trigger EYield ;;
-            Ret (Vnodef, [])
-       | case_lock =>
-         (* trigger EYield ;; *)
-         (* id <- (unwrapN (nth_error args 0) >>= (unwrapN <*> get_id)) ;; *)
-         id <- (unwrapN (nth_error args 0 >>= get_id)) ;;
-            (* (trigger (LockE id)) >>= unwrapN >>= fun v => Ret (v, []) *)
-            v <- (ITree.iter (fun _ => trigger EYield ;; trigger (TryLockE id)) tt) ;;
-            Ret (v, [])
-            (* v <- ((trigger (TryLockE id)) >>= unwrapN) ;; *)
-            (* Ret (v, []) *)
-       | _ => triggerNB "Lock-no such function"
-       end)
-  .
-
-  Definition owned_heap := (nat * (alist ident val))%type.
-
-  Definition handler: LockEvent ~> stateT owned_heap (itree Event) :=
-    (* State.interp_state  *)
-    fun _ e '(ctr, m) =>
-      match e with
-      | UnlockE k v => Ret ((ctr, Maps.add k v m), tt)
-      | TryLockE k =>
-        match Maps.lookup k m with
-        | Some v => Ret ((ctr, Maps.remove k m), inr v)
-        | None => Ret ((ctr, m), inl tt)
-        end
-      (* Ret ((ctr, m), Maps.lookup k m) *)
-      | GetUidE => Ret ((S ctr, m), ctr)
-      end
-  .
-
-  Definition modsem: ModSem :=
-    mk_ModSem
-      (fun s => existsb (string_dec s) ["Lock.unlock" ; "Lock.lock" ; "Lock.init"])
-      (* in_dec Strings.String.string_dec s ["Lock.unlock" ; "Lock.lock" ; "Lock.init"]) *)
-      (5252, [])
-      LockEvent
-      handler
-      sem
-  .
-
-End LOCK.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -422,6 +287,7 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
     (* Store chunk limit_ofs ((GetLen chunk) / entry_size) #; *)
     Store chunk limit_ofs size #;
 
+    Debug "add_chunk-calling lock" p #;
     p #:= (Call "Lock.lock" [CBV (Load p lock_ofs)]) #;
     Store chunk next_chunk_ofs (Load p chunk_list_ofs) #;
     Store p chunk_list_ofs chunk #;
@@ -479,19 +345,20 @@ Module TEST.
 
     Definition main
                (p r1 r2 r3: var): stmt :=
-      p #:= Vptr None [0: val ; 0: val] #;
+      p #:= Vptr None [0: val ; 0: val ; 0: val] #;
         (* (Put "before init: " p) #; *)
+        Debug "before init: " p #;
         Call "init" [CBR p] #;
-        (* (Put "after init: " p) #; *)
+        Debug "after init: " p #;
         Call "add_chunk" [CBR p ; CBV (big_chunk 500 10) ; CBV 10] #;
         (* (Put "add_chunk done: " p) #; *)
 
-        r1 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
+        r1 #:= Call "alloc_contiguous" [CBR p ; CBV 7] #;
         (* (Put "alloc first; should succeed: " r1) #; *)
         (* (Put "alloc first; p: " p) #; *)
         #if r1 then Skip else Assume #;
 
-        r2 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
+        r2 #:= Call "alloc_contiguous" [CBR p ; CBV 7] #;
         (* (Put "alloc second; should fail: " r2) #; *)
         (* (Put "alloc second; p: " p) #; *)
         #if r2 then Assume else Skip #;
@@ -499,7 +366,7 @@ Module TEST.
         Call "add_chunk" [CBR p ; CBV r1 ; CBV 7] #;
         (* (Put "add_chunk done" p) #; *)
 
-        r3 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
+        r3 #:= Call "alloc_contiguous" [CBR p ; CBV 7] #;
         (* (Put "alloc third; should succeed: " r3) #; *)
         (* (Put "alloc third; p: " p) #; *)
         #if r3 then Skip else Assume #;
@@ -514,8 +381,8 @@ Module TEST.
       [
         ("main", mainF) ;
           ("init", initF) ;
-          ("alloc_contiguous2", alloc_contiguousF) ;
-          ("alloc_contiguous_no_fallback2", alloc_contiguous_no_fallbackF) ;
+          ("alloc_contiguous", alloc_contiguousF) ;
+          ("alloc_contiguous_no_fallback", alloc_contiguous_no_fallbackF) ;
           ("add_chunk", add_chunkF)
       ].
 
@@ -542,12 +409,12 @@ Module TEST.
         Call "add_chunk" [CBR p ; CBV (big_chunk 1500 10) ; CBV 10] #;
         (* (Put "add_chunk done: " p) #; *)
 
-        r1 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
+        r1 #:= Call "alloc_contiguous" [CBR p ; CBV 7] #;
         (* (Put "alloc first; should succeed: " r1) #; *)
         (* (Put "alloc first; p: " p) #; *)
         #if r1 then Skip else Assume #;
 
-        r2 #:= Call "alloc_contiguous2" [CBR p ; CBV 7] #;
+        r2 #:= Call "alloc_contiguous" [CBR p ; CBV 7] #;
         (* (Put "alloc second; should succeed: " r2) #; *)
         (* (Put "alloc second; p: " p) #; *)
         #if r2 then Skip else Assume #;
@@ -561,8 +428,8 @@ Module TEST.
       [
         ("main", mainF) ;
           ("init", initF) ;
-          ("alloc_contiguous2", alloc_contiguousF) ;
-          ("alloc_contiguous_no_fallback2", alloc_contiguous_no_fallbackF) ;
+          ("alloc_contiguous", alloc_contiguousF) ;
+          ("alloc_contiguous_no_fallback", alloc_contiguous_no_fallbackF) ;
           ("add_chunk", add_chunkF)
       ].
 
@@ -616,17 +483,17 @@ Module TEST.
       Call "add_chunk" [CBR p0 ; CBV (big_chunk 500  1) ; CBV 1] #;
       
 
-      r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 1] #;
+      r #:= Call "alloc_contiguous" [CBR p0 ; CBV 1] #;
       #if r then Skip else Assume #;
-      r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 2] #;
+      r #:= Call "alloc_contiguous" [CBR p0 ; CBV 2] #;
       #if r then Skip else Assume #;
-      r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 3] #;
+      r #:= Call "alloc_contiguous" [CBR p0 ; CBV 3] #;
       #if r then Assume else Skip #;
-      r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 2] #;
+      r #:= Call "alloc_contiguous" [CBR p0 ; CBV 2] #;
       #if r then Skip else Assume #;
-      r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 1] #;
+      r #:= Call "alloc_contiguous" [CBR p0 ; CBV 1] #;
       #if r then Skip else Assume #;
-      r #:= Call "alloc_contiguous2" [CBR p0 ; CBV 1] #;
+      r #:= Call "alloc_contiguous" [CBR p0 ; CBV 1] #;
       #if r then Assume else Skip #;
       Put "Test4 Passed" Vnull #;
       Skip
@@ -638,8 +505,8 @@ Module TEST.
         ("main", mainF) ;
           ("init", initF) ;
           ("init_with_fallback", init_with_fallbackF) ;
-          ("alloc_contiguous2", alloc_contiguousF) ;
-          ("alloc_contiguous_no_fallback2", alloc_contiguous_no_fallbackF) ;
+          ("alloc_contiguous", alloc_contiguousF) ;
+          ("alloc_contiguous_no_fallback", alloc_contiguous_no_fallbackF) ;
           ("add_chunk", add_chunkF)
       ].
 

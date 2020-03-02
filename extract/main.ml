@@ -62,18 +62,18 @@ let handle_Event = fun e k ->
   match e with
   | ENB msg -> failwith ("NB:" ^ (cl2s msg))
   | EUB msg -> failwith ("UB:" ^ (cl2s msg))
-  (* | Syscall (['p'], [v]) -> print_val v ; k (Obj.magic ()) *)
   | ESyscall ('p'::[], msg, v::[]) ->
      print_string (cl2s msg) ; print_val v ; k (Obj.magic ())
+  | ESyscall ('d'::[], msg, v::[]) ->
+     print_string "<DEBUG> " ; print_string (cl2s msg) ; print_val v ; k (Obj.magic ())
   | ESyscall ('g'::[], _,   []) ->
      let x = read_int() in k (Obj.magic (Vnat (Nat.of_int x)))
   | ESyscall (cl,      msg, vs) ->
      print_string (cl2s msg) ; print_endline (cl2s cl) ;
-(* print_val (List.nth vs 0) ; *)
-(* print_int (length cl) ; *)
-(* print_int (length vs) ; *)
-                        failwith "UNSUPPORTED SYSCALL"
-  | EYield -> print_endline "yielding" ; k (Obj.magic ())
+     failwith "UNSUPPORTED SYSCALL"
+  | EYield ->
+     (* print_endline "yielding" ; *)
+     k (Obj.magic ())
   | _ -> failwith "NO MATCH"
 
 let rec run t =
