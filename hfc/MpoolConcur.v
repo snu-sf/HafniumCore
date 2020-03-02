@@ -131,14 +131,14 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
 
   (*** DELTA: Add call to "Lock.unlock"  ***)
   Definition init_with_fallback (p fallback: var): stmt :=
-    Call "init" [CBR p] #;
+    (* Call "init" [CBR p] #; *)
+    (* (Store p fallback_ofs fallback) #; *)
+    (* (Call "Lock.unlock" [CBV (Load p lock_ofs) ; CBV p]) #; *)
+    (Store p chunk_list_ofs Vnull) #;
     (Store p fallback_ofs fallback) #;
+    (Store p lock_ofs (Call "Lock.new" [])) #;
     (Call "Lock.unlock" [CBV (Load p lock_ofs) ; CBV p]) #;
     Skip
-    (* (Store p chunk_list_ofs Vnull) #; *)
-    (* (Store p fallback_ofs fallback) #; *)
-    (* (Store p lock_ofs (Call "Lock.init" [CBV p])) #; *)
-    (* Skip *)
   .
 
   (* void *mpool_alloc_contiguous(struct mpool *p, size_t count, size_t align) *)

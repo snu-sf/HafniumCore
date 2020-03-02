@@ -152,6 +152,21 @@ Module LOCK.
   fun al -> print_string ""<LOCKSTATE> "" ; print_int (nat_to_int (length al)) ; print_string "" "" ; (List.iter (fun kv -> print_int (nat_to_int (fst kv)) ; print_string "" "") al) ; print_endline "" "" "
   .
 
+  (************* TODO: SEPARATE COAMLCOQ.ML ************************)
+  (************* TODO: SEPARATE COAMLCOQ.ML ************************)
+  (************* TODO: SEPARATE COAMLCOQ.ML ************************)
+  (************* TODO: SEPARATE COAMLCOQ.ML ************************)
+  (************* TODO: SEPARATE COAMLCOQ.ML ************************)
+  (************* TODO: SEPARATE COAMLCOQ.ML ************************)
+
+  Variable nat_printer: ident -> unit.
+  Extract Constant nat_printer =>
+  "
+  let rec nat_to_int = function | O -> 0 | S n -> succ (nat_to_int n) in
+  fun n -> print_int (nat_to_int n)
+  "
+  .
+
   Variable failwith: forall {T}, string -> T.
   Extract Constant failwith =>
   "
@@ -160,20 +175,36 @@ Module LOCK.
   "
   .
 
+  Goal (Maps.lookup 1 (Maps.add 1 10 Maps.empty)) = Some 10. ss. Qed.
+  Goal (Maps.lookup 2 (Maps.add 1 10 Maps.empty)) = Some 10. ss. Qed.
+  Goal (Maps.lookup 2 (Maps.add 1 10 (Maps.empty (Map:=Map_alist _ _)))) = Some 10. ss. Qed.
+  Goal (Maps.lookup (Map:=Map_alist Nat.RelDec_eq nat)
+                    2 (Maps.add (Map:=Map_alist Nat.RelDec_eq nat) 1 10
+                                (Maps.empty
+                (Map:=Map_alist Nat.RelDec_eq nat)))) = Some 10. ss. Abort.
+  Print Map_alist.
+  Print Instances RelDec.
+
+  (* Local Instance MyMap {V}: (Map nat V (alist nat V)) := Map_alist Nat.RelDec_eq V. *)
+  (* Goal (Maps.lookup 2 (Maps.add 1 10 (Maps.empty (Map:=Map_alist _ _)))) = Some 10. ss. Abort. *)
+  Local Instance MyMap: (Map nat val (alist nat val)) := Map_alist Nat.RelDec_eq val.
+
   Definition handler: LockEvent ~> stateT owned_heap (itree Event) :=
     (* State.interp_state  *)
     fun _ e '(ctr, m) =>
       match e with
       | UnlockE k v =>
+        (* let k := debug_print nat_printer k in *)
         let m := debug_print alist_printer m in
+        let m' := debug_print alist_printer (Maps.add k v m) in
         match Maps.lookup k m with
         | Some _ => failwith "UNLOCKING TWICE"
-        | None => Ret ((ctr, Maps.add k v m), tt)
+        | None => Ret ((ctr, m'), tt)
         end
       | TryLockE k =>
-        let m := debug_print alist_printer m in
         match Maps.lookup k m with
         | Some v =>
+          let m := debug_print alist_printer m in
           let m' := debug_print alist_printer (Maps.remove k m) in
           Ret ((ctr, m'), inr v)
           (* Ret ((ctr, Maps.remove k m), inr v) *)
