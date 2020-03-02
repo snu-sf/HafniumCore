@@ -200,6 +200,8 @@ let main =
   run (MultiModuleLocalStateSimple.isem1) ;
   print_endline "-----------------------------------------------------------" ;
   run (MultiModuleLocalStateSimple.isem2) ;
+  print_endline "-----------------------------------------------------------" ;
+  run (MultiModuleGenv.isem) ;
 
   (* print_endline "-----------------------------------------------------------" ;
    * run (eval_program MpoolSeq.TEST.TEST1.program) ; *)

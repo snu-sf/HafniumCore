@@ -399,6 +399,46 @@ End MultiModule.
 
 
 
+
+Module MultiModuleGenv.
+
+  Definition f: stmt :=
+    "GVAR1" #:= 1000 #;
+    Return "GVAR2"
+  .
+
+  Definition g: stmt :=
+    "GVAR2" #:= 2000 #;
+    Return "GVAR1"
+  .
+
+  Definition main: stmt :=
+    (Call "f" []) #;
+    #if (Call "g" []) == 1000 then Skip else Assume #;
+    #if (Call "f" []) == 2000 then Skip else Assume #;
+    Put "Test(MultiModuleGenv) passed" Vnull
+  .
+
+  Definition main_function: function.
+    mk_function_tac main ([]:list var) ([]:list var). Defined.
+  Definition f_function: function. mk_function_tac f ([]: list var) ([]: list var). Defined.
+  Definition g_function: function. mk_function_tac g ([]: list var) ([]: list var). Defined.
+
+  Definition main_program: program := [("main", main_function)].
+  Definition f_program: program := [("f", f_function)].
+  Definition g_program: program := [("g", g_function)].
+
+  Definition modsems: list ModSem :=
+    List.map program_to_ModSem [main_program ; f_program ; g_program].
+
+  Definition isem: itree Event unit := eval_multimodule modsems.
+
+End MultiModuleGenv.
+
+
+
+
+
 Module MultiModuleLocalState.
 
   Inductive memoizeE: Type -> Type :=

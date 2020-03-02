@@ -45,6 +45,7 @@ Separate Extraction
          LangTest.DoubleReturn.program
          LangTest.MultiCore.programs
          LangTest.MultiModule.isem
+         LangTest.MultiModuleGenv.isem
          LangTest.MultiModuleLocalState.isem
          LangTest.MultiModuleLocalStateSimple.isem1
          LangTest.MultiModuleLocalStateSimple.isem2
