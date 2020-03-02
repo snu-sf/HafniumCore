@@ -163,7 +163,7 @@ Definition program: Type := list (string * function).
 (* ========================================================================== *)
 (** ** Notations *)
 
-Module ImpNotations.
+Module LangNotations.
 
   (** A few notations for convenience.  *)
   Definition Expr_coerce: expr -> stmt := Expr.
@@ -232,30 +232,16 @@ Module ImpNotations.
   Notation "#* e" :=
     (Load e 0) (at level 40, e at level 50): stmt_scope.
 
-End ImpNotations.
+End LangNotations.
 
-Import ImpNotations.
+Import LangNotations.
 
-(* ========================================================================== *)
-(** ** Semantics *)
-
-(** _Imp_ produces effects by manipulating its variables.  To account for this,
-    we define a type of _external interactions_ [ImpState] modeling reads and
-    writes to global variables.
-
-    A read, [GetVar], takes a variable as an argument and expects the
-    environment to answer with a val, hence defining an event of type
-    [ImpState val].
-
-    Similarly, [SetVar] is a write event parameterized by both a variable and a
-    val to be written, and defines an event of type [ImpState unit], no
-    informative answer being expected from the environment.  *)
-Variant ImpState : Type -> Type :=
-| GetVar (x : var) : ImpState val
-| SetVar (x : var) (v : val) : ImpState unit
-| PushEnv: ImpState unit
-| PopEnv: ImpState unit
-(* | StoreVar (x: var) (ofs: nat) (v: val): ImpState bool *)
+Variant LocalE : Type -> Type :=
+| GetVar (x : var) : LocalE val
+| SetVar (x : var) (v : val) : LocalE unit
+| PushEnv: LocalE unit
+| PopEnv: LocalE unit
+(* | StoreVar (x: var) (ofs: nat) (v: val): LocalE bool *)
 .
 
 Variant Event: Type -> Type :=
@@ -310,7 +296,7 @@ Section Denote.
       of which [ImpState] is assumed to be a subevent. *)
 
   Context {eff : Type -> Type}.
-  Context {HasImpState : ImpState -< eff}.
+  Context {HasLocalE: LocalE -< eff}.
   Context {HasEvent : Event -< eff}.
   Context {HasCallInternalE: CallInternalE -< eff}.
   Context {HasCallExternalE: CallExternalE -< eff}.
@@ -546,7 +532,7 @@ Section Denote.
   Open Scope stmt_scope.
 
   Context {eff : Type -> Type}.
-  Context {HasImpState : ImpState -< eff}.
+  Context {HasLocalE : LocalE -< eff}.
   Context {HasEvent : Event -< eff}.
   Context {HasCallExternalE: CallExternalE -< eff}.
 
@@ -648,8 +634,8 @@ Qed.
     environment events [mapE] provided by the library. It comes with an event
     interpreter [interp_map] that yields a computation in the state monad.  *)
 Definition env := list (alist var val).
-Definition handle_ImpState {E: Type -> Type}
-  : ImpState ~> stateT env (itree E) :=
+Definition handle_LocalE {E: Type -> Type}
+  : LocalE ~> stateT env (itree E) :=
   fun _ e env =>
     let hd := hd empty env in
     (** YJ: error handling needed?
@@ -683,9 +669,9 @@ forall eff, {pf:E -< eff == F[E]} (t : itree eff A)
 *)
 
 (** YJ: copied from interp_map's definition **)
-Definition interp_imp  {E A} (t : itree (ImpState +' E) A) :
+Definition interp_imp  {E A} (t : itree (LocalE +' E) A) :
   stateT env (itree E) A :=
-  let t' := State.interp_state (case_ handle_ImpState State.pure_state) t in
+  let t' := State.interp_state (case_ handle_LocalE State.pure_state) t in
   t'
 .
 
@@ -975,7 +961,7 @@ Section InterpImpProperties.
    *)
 
   Context {E': Type -> Type}.
-  Notation E := (ImpState +' E').
+  Notation E := (LocalE +' E').
 
   (** This interpreter is compatible with the equivalence-up-to-tau. *)
   Global Instance eutt_interp_imp {R}:

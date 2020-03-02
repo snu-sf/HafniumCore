@@ -82,8 +82,8 @@ let handle_Event = fun e k ->
   | ESyscall ('p'::[], msg, v::[]) ->
      print_string (cl2s msg) ; print_val v ; k (Obj.magic ())
   | ESyscall ('d'::[], msg, vs) ->
-     print_string "<DEBUG> " ; print_string (cl2s msg) ;
-     print_endline (string_of_vals vs) ;
+     (* print_string "<DEBUG> " ; print_string (cl2s msg) ;
+      * print_endline (string_of_vals vs) ; *)
      k (Obj.magic ())
   | ESyscall ('g'::[], _,   []) ->
      let x = read_int() in k (Obj.magic (Vnat (Nat.of_int x)))

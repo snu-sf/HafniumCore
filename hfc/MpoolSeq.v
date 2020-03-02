@@ -32,7 +32,7 @@ Require Import Coqlib sflib.
 
 (* From HafniumCore *)
 Require Import Lang.
-Import ImpNotations.
+Import LangNotations.
 Local Open Scope expr_scope.
 Local Open Scope stmt_scope.
 

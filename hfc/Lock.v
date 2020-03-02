@@ -32,7 +32,7 @@ Require Import Coqlib sflib.
 
 (* From HafniumCore *)
 Require Import Lang.
-Import ImpNotations.
+Import LangNotations.
 Local Open Scope expr_scope.
 Local Open Scope stmt_scope.
 
@@ -140,8 +140,8 @@ Module LOCK.
   Definition debug_print (A: Type) (printer: A -> unit) (content: A): A :=
     let unused := printer content in content.
   Extract Constant debug_print =>
-  "fun printer content -> printer content ; content"
-  (* "fun printer content -> content" *)
+  (* "fun printer content -> printer content ; content" *)
+  "fun printer content -> content"
   .
   Variable alist_printer: alist ident val -> unit.
   (* Variable dummy_client: unit -> unit. *)

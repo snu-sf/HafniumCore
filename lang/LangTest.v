@@ -35,7 +35,7 @@ About excluded_middle_informative.
 
 (* From HafniumCore *)
 Require Import Lang.
-Import ImpNotations.
+Import LangNotations.
 
 Set Implicit Arguments.
 
