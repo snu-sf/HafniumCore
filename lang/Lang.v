@@ -845,7 +845,7 @@ Defined.
 
 Obligation Tactic := idtac.
 
-Definition eval_multimodule_aux (mss: list ModSem):
+Definition eval_multimodule_aux (mss: list ModSem) (entry: string):
   itree ((sum_all1 (List.map customE mss)) +' GlobalE +' Event) (val * list val)
   :=
   let sem: CallExternalE ~> itree ((sum_all1 (List.map customE mss)) +' GlobalE +' Event) :=
@@ -893,7 +893,7 @@ Definition eval_multimodule_aux (mss: list ModSem):
               (* | _ => triggerUB *)
               (* end) *)
   in
-  sem _ (CallExternal "main" [])
+  sem _ (CallExternal entry [])
 .
 
 Inductive hlist (mss: list ModSem): Type :=
@@ -1008,7 +1008,7 @@ Definition program_to_ModSem (p: program): ModSem :=
 
 Definition eval_multimodule (mss: list ModSem): itree Event unit :=
   let t: itree (sum_all1 (List.map customE mss) +' GlobalE +' Event) (val * list val)
-      := eval_multimodule_aux mss in
+      := eval_multimodule_aux mss "main" in
   let st := State.interp_state (case_ (HANDLE2 mss) State.pure_state) t in
   let t': itree (GlobalE +' Event) _ := (st (INITIAL2 mss)) in
   let t'': itree Event _ := interp_GlobalE t' [] in
@@ -1098,15 +1098,21 @@ Section CONCURRENCY.
 
 End CONCURRENCY.
 
-Definition eval_multimodule_multicore (mss: list ModSem) (numcores: nat):
-  itree Event unit :=
-  let t: itree (sum_all1 (List.map customE mss) +' GlobalE +' Event) (val * list val)
-      := eval_multimodule_aux mss in
-  let st := State.interp_state (case_ (HANDLE2 mss) State.pure_state) t in
-  let t': itree (GlobalE +' Event) _ := (st (INITIAL2 mss)) in
-  let t'': itree (GlobalE +' Event) _ := round_robin (repeat t' numcores) in
-  let t''': itree Event _ := interp_GlobalE t'' [] in
-  ITree.ignore t'''
+Definition eval_multimodule_multicore (mss: list ModSem) (entries: list var)
+  : itree Event unit :=
+  let ts: list (itree (GlobalE +' Event) _) :=
+      List.map
+        (fun entry =>
+           let t := eval_multimodule_aux mss entry in
+           let st := State.interp_state (case_ (HANDLE2 mss) State.pure_state) t in
+           let t := st (INITIAL2 mss) in
+           t)
+        entries
+  in
+  let t: itree (GlobalE +' Event) _ := round_robin ts in
+  let t: itree Event _ := interp_GlobalE t [] in
+  let t: itree Event unit := ITree.ignore t in
+  t
 .
 
 

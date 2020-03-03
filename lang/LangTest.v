@@ -709,3 +709,52 @@ Module MultiModuleLocalStateSimple.
 
 End MultiModuleLocalStateSimple.
 
+
+
+Module MultiModuleMultiCore.
+
+  Definition producer i: stmt :=
+    i #:= 10 #;
+    #while i
+    do (
+      Debug "PRODUCER: " i #;
+      #if "GVAR" == 0
+       then ("GVAR" #:= i #; i #:= i-1)
+       else Skip #;
+      Yield
+    ) #;
+    "SIGNAL" #:= "SIGNAL" + 1
+  .
+
+  Definition consumer s: stmt :=
+    s #:= 0 #;
+    #while true
+    do (
+      Debug "CONSUMER: " s #;
+      #if "GVAR" == 0
+       then Skip
+       else s #:= s + "GVAR" #;
+            "GVAR" #:= 0
+      #;
+      #if "SIGNAL" == 2 then Break else Skip #;
+      Yield
+    ) #;
+    (* #put s #; *)
+    #if s == 110 then Skip else Assume #;
+    Put "Test(MultiCore3) passed" Vnull
+  .
+
+  Definition producerF: function. mk_function_tac producer ([]: list var) (["i"]). Defined.
+  Definition consumerF: function. mk_function_tac consumer ([]: list var) (["s"]). Defined.
+
+  Definition producerP: program := [("producer", producerF) ].
+  Definition consumerP: program := [("consumer", consumerF) ].
+
+  Definition programs: list Lang.program := [ producerP ; consumerP ].
+  Definition modsems: list ModSem := List.map program_to_ModSem programs.
+
+  Definition sem: itree Event unit :=
+    eval_multimodule_multicore modsems [ "producer" ; "producer" ; "consumer" ].
+
+End MultiModuleMultiCore.
+

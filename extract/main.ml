@@ -196,6 +196,8 @@ let main =
   run (MultiCore2.sem) ;
   print_endline "-----------------------------------------------------------" ;
   run (MultiCoreMPSC.sem) ;
+  print_endline "-----------------------------------------------------------" ;
+  run (MultiModuleMultiCore.sem) ;
 
   print_endline "-----------------------------------------------------------" ;
   run (eval_whole_program DoubleReturn.program) ;

@@ -52,6 +52,7 @@ Separate Extraction
          LangTest.MultiModuleLocalState.isem
          LangTest.MultiModuleLocalStateSimple.isem1
          LangTest.MultiModuleLocalStateSimple.isem2
+         LangTest.MultiModuleMultiCore.sem
          (* LangTest.print_val *)
          (* LangTest.main *)
          (* LangTest.handle_Event *)
