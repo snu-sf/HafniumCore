@@ -68,20 +68,20 @@ Module LoadStore.
   Definition main x sum: stmt :=
     sum #= Vnat 0#;
     x #= Vptr None (repeat (Vnat 0) 3)#;
-    #put x#;
+    Put "" x#;
     (x @ 0 #:= 10)#;
-    #put x#;
+    Put "" x#;
     (x @ 1 #:= 20)#;
-    #put x#;
+    Put "" x#;
     (x @ 2 #:= 30)#;
-    #put x#;
-    #put sum#;
+    Put "" x#;
+    Put "" sum#;
     sum #= sum + (x #@ 0)#;
-    #put sum#;
+    Put "" sum#;
     sum #= sum + (x #@ 1)#;
-    #put sum#;
+    Put "" sum#;
     sum #= sum + (x #@ 2)#;
-    #put sum#;
+    Put "" sum#;
     Skip
   .
 
@@ -127,7 +127,7 @@ Module Rec.
   Definition main x r: stmt :=
     x #= 10 #;
       r #= (Call "f" [CBV x]) #;
-      #put r
+      Put "" r
   .
 
   Definition main_function: function.
@@ -197,7 +197,7 @@ Module Move.
     x #= 10 #;
       accu #= 1000 #;
       unused #= (Call "f" [CBV x ; CBR accu]) #;
-      #put accu
+      Put "" accu
   .
 
   Definition f_function: function. mk_function_tac f ["x" ; "accu"]
@@ -234,8 +234,8 @@ Module CoqCode.
   Definition main x: stmt :=
     x #= 25 #;
       (#if (CoqCode [Var x] coqcode)
-        then #put 555
-        else #put 666)
+        then Put "" 555
+        else Put "" 666)
   .
 
   Definition main_function: function.
@@ -252,10 +252,10 @@ Module Control.
   Definition f ctrl ret iter: stmt :=
     iter #= 10 #;
     ret #= 0 #;
-    (* #put ctrl #; *)
-    (* #put iter #; *)
-    (* #put ret #; *)
-    (* #put 7777777 #; *)
+    (* Put "" ctrl #; *)
+    (* Put "" iter #; *)
+    (* Put "" ret #; *)
+    (* Put "" 7777777 #; *)
     #while iter
      do (
           iter #= iter - 1#;
@@ -264,13 +264,13 @@ Module Control.
           (* 2 --> return *)
           (* 3 --> normal *)
           #if ctrl == 0 then Break else Skip #;
-          (* #put 1111 #; *)
+          (* Put "" 1111 #; *)
           ret #= ret + 1 #;
           #if ctrl == 1 then Continue else Skip #;
-          (* #put 2222 #; *)
+          (* Put "" 2222 #; *)
           ret #= ret + 10 #;
           #if ctrl == 2 then (Return (ret + 100)) else Skip #;
-          (* #put 3333 #; *)
+          (* Put "" 3333 #; *)
           ret #= ret + 1000 #;
 
           Skip
@@ -325,14 +325,14 @@ End DoubleReturn.
 Module MultiCore.
 
   Definition main (n: nat): stmt :=
-    #put (n + 1) #;
-    #put (n + 2) #;
+    Put "" (n + 1) #;
+    Put "" (n + 2) #;
     Yield #;
-    #put (n + 3) #;
-    #put (n + 4) #;
+    Put "" (n + 3) #;
+    Put "" (n + 4) #;
     Yield #;
-    #put (n + 5) #;
-    #put (n + 6) #;
+    Put "" (n + 5) #;
+    Put "" (n + 6) #;
     Skip
   .
 
@@ -428,7 +428,7 @@ Module MultiCoreMPSC.
       #if "SIGNAL" == 2 then Break else Skip #;
       Yield
     ) #;
-    (* #put s #; *)
+    (* Put "" s #; *)
     #assume (s == 110) #;
     Put "Test(MultiCore3) passed" Vnull
   .
@@ -596,28 +596,28 @@ Module MultiModuleLocalState.
 
   Definition main r: stmt :=
       r #= (Call "f" [CBV 10]) #;
-      #put r #;
+      Put "" r #;
 
-      #put 99999 #;
-      #put 99999 #;
-      #put 99999 #;
+      Put "" 99999 #;
+      Put "" 99999 #;
+      Put "" 99999 #;
 
       r #= (Call "f" [CBV 10]) #;
-      #put r #;
+      Put "" r #;
 
-      #put 99999 #;
-      #put 99999 #;
-      #put 99999 #;
+      Put "" 99999 #;
+      Put "" 99999 #;
+      Put "" 99999 #;
 
       r #= (Call "f" [CBV 5]) #;
-      #put r #;
+      Put "" r #;
 
-      #put 99999 #;
-      #put 99999 #;
-      #put 99999 #;
+      Put "" 99999 #;
+      Put "" 99999 #;
+      Put "" 99999 #;
 
       r #= (Call "f" [CBV 8]) #;
-      #put r #;
+      Put "" r #;
 
       Skip
   .
@@ -737,7 +737,7 @@ Module MultiModuleMultiCore.
       #if "SIGNAL" == 2 then Break else Skip #;
       Yield
     ) #;
-    (* #put s #; *)
+    (* Put "" s #; *)
     #assume (s == 110) #;
     Put "Test(MultiCore3) passed" Vnull
   .

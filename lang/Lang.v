@@ -250,8 +250,8 @@ Module LangNotations.
   Notation "x '#@' ofs" :=
     (Load x ofs) (at level 99): expr_scope.
 
-  Notation "#put e" :=
-    (Put "" e) (at level 60, e at level 50): stmt_scope.
+  (* Notation "#put e" := *)
+  (*   (Put "" e) (at level 60, e at level 50): stmt_scope. *)
 
   (* Notation "x '#:=' '#get' e" := *)
   (*   (Get x e) (at level 60, e at level 50): stmt_scope. *)
