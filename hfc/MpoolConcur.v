@@ -767,7 +767,7 @@ Module TEST.
 
     Definition isem: itree Event unit :=
       eval_multimodule_multicore
-        modsems [ "main" ; "alloc_and_free2" ; "alloc_and_free4" ].
+        modsems [ "main" ; "alloc_and_free2" ; "alloc_and_free3" ].
 
   End TEST4.
 
