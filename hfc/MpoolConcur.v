@@ -682,13 +682,10 @@ Module TEST.
 
     Definition main (p i r: var): stmt := Eval compute in INSERT_YIELD (
       p #= Vptr None [0: val ; 0: val ; 0: val ] #;
-      (* DebugMpool "calling init" p #; *)
       Call "init" [CBR p] #;
       DebugMpool "(Global Mpool) After initialize" p #;
       Call "add_chunk" [CBR p ; CBV (big_chunk pte_paddr_begin MAX) ; CBV MAX] #;
-      (* DebugMpool "(Global Mpool) After add_chunk" p #; *)
       "GMPOOL" #= p #;
-      (* DebugMpool "gvar assign done" p #; *)
       #while ("SIGNAL" <= 1) do (Debug "waiting for SIGNAL" Vnull) #;
 
       (*** JUST FOR PRINTING -- START ***)
@@ -711,10 +708,8 @@ Module TEST.
     Definition alloc_and_free (sz: nat)
                (p i r0 r1 r2: var): stmt := Eval compute in INSERT_YIELD (
       #while (! "GMPOOL") do (Debug "waiting for GMPOOL" Vnull) #;
-      (* DebugMpool "ALLOC_AND_FREE START" Vnull #; *)
-      i #= MAX #;
+      (* i #= MAX #; *)
       p #= Vptr None [0: val ; 0: val ; 0: val ] #;
-      (* DebugMpool "init-with-fallback start" Vnull #; *)
       Call "init_with_fallback" [CBR p ; CBV "GMPOOL"] #;
       DebugMpool "(Local Mpool) After init-with-fallback" p #;
       (* #while i *)
@@ -722,20 +717,14 @@ Module TEST.
         Debug "looping, i is: " i #;
         i #= i - 1 #;
         r0 #= Call "alloc_contiguous" [CBR p ; CBV sz] #;
-        (* DebugMpool "(Local Mpool) After alloc_contiguous" p #; *)
         r1 #= Call "alloc_contiguous" [CBR p ; CBV sz] #;
-        (* DebugMpool "(Local Mpool) After alloc_contiguous" p #; *)
         r2 #= Call "alloc_contiguous" [CBR p ; CBV sz] #;
-        (* DebugMpool "(Local Mpool) After alloc_contiguous" p #; *)
         #assume r0 #;
         #assume r1 #;
         #assume r2 #;
         Call "add_chunk" [CBR p ; CBV r0 ; CBV sz] #;
-        (* DebugMpool "(Local Mpool) After add_chunk" p #; *)
         Call "add_chunk" [CBR p ; CBV r1 ; CBV sz] #;
-        (* DebugMpool "(Local Mpool) After add_chunk" p #; *)
         Call "add_chunk" [CBR p ; CBV r2 ; CBV sz] #;
-        (* DebugMpool "(Local Mpool) After add_chunk" p #; *)
         Skip
       (* ) #; *)
       #;
