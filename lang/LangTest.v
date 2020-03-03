@@ -457,12 +457,12 @@ Module MultiCore2.
     #while i
     do (
       i #:= i -1 #;
-      #put "GVAR" #;
       #if "GVAR" % 2 == 0
        then Skip
        else Assume #;
       Yield
     ) #;
+    #if "GVAR" == 0 then Assume else Skip #; (* Test if GlobalE actually worked *)
     Put "Test(MultiCore2) passed" Vnull
   .
 
@@ -491,7 +491,9 @@ Module MultiCore2.
 
   Definition programs: list Lang.program := [ observerP ; adderP ; adderP ; mainP ].
 
-  (* Definition sem shuffle := round_robin shuffle (List.map eval_whole_program programs). *)
+  Definition sem shuffle :=
+   ITree.ignore
+     (interp_GlobalE (round_robin shuffle (List.map eval_single_program programs)) []).
 
 End MultiCore2.
 

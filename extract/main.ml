@@ -193,10 +193,10 @@ let main =
   (* print_endline "-----------------------------------------------------------" ;
    * run (round_robin (fun _ -> shuffle) (List.map eval_program MultiCore.programs)) ; *)
   print_endline "-----------------------------------------------------------" ;
-  run (round_robin (fun _ -> shuffle) (List.map eval_program MultiCore2.programs)) ;
+  run (MultiCore2.sem (fun _ -> shuffle)) ;
 
   print_endline "-----------------------------------------------------------" ;
-  run (eval_program DoubleReturn.program) ;
+  run (eval_whole_program DoubleReturn.program) ;
 
   print_endline "-----------------------------------------------------------" ;
   run (MultiModuleLocalStateSimple.isem1) ;
@@ -209,13 +209,13 @@ let main =
    * run (eval_program MpoolSeq.TEST.TEST1.program) ; *)
 
   print_endline "-----------------------------------------------------------" ;
-  run (eval_program MpoolSeq.TEST.TEST2.program) ;
+  run (eval_whole_program MpoolSeq.TEST.TEST2.program) ;
 
   print_endline "-----------------------------------------------------------" ;
-  run (eval_program MpoolSeq.TEST.TEST3.program) ;
+  run (eval_whole_program MpoolSeq.TEST.TEST3.program) ;
 
   print_endline "-----------------------------------------------------------" ;
-  run (eval_program MpoolSeq.TEST.TEST4.program) ;
+  run (eval_whole_program MpoolSeq.TEST.TEST4.program) ;
 
   print_endline "-----------------------------------------------------------" ;
   run (MpoolConcur.TEST.TEST1.isem) ;

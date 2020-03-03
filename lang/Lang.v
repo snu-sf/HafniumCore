@@ -734,17 +734,30 @@ Definition interp_GlobalE {E A} (t : itree (GlobalE +' E) A) :
 .
 
 Definition ignore_l {A B}: itree (A +' B) ~> itree B :=
-  interp (fun _ e =>
+  interp (fun _ (e: (A +' B) _) =>
             match e with
-            | inl1 a => ITree.spin
+            | inl1 _ => ITree.spin
             | inr1 b => trigger b
+            end)
+.
+
+Definition ignore_r {A B}: itree (A +' B) ~> itree A :=
+  interp (fun _ (e: (A +' B) _) =>
+            match e with
+            | inl1 a => trigger a
+            | inr1 _ => ITree.spin
             end)
 .
 
 Definition eval_whole_program (p: program): itree Event unit :=
     let i0 := (interp_LocalE (denote_program p) []) in
     let i1 := (interp_GlobalE i0 []) in
-    @ignore_l CallExternalE Event _ (ITree.ignore i1)
+    @ignore_l CallExternalE _ _ (ITree.ignore i1)
+.
+
+Definition eval_single_program (p: program): itree (GlobalE +' Event) unit :=
+    let i0 := (interp_LocalE (denote_program p) []) in
+    @ignore_l CallExternalE _ _ (ITree.ignore i0)
 .
 
 Print Instances Iter.

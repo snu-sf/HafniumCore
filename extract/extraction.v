@@ -33,7 +33,8 @@ Cd "extract".
 (* Separate Extraction MpoolSeq MpoolConcur Lang LangTest. *)
 
 Separate Extraction
-         Lang.eval_program
+         Lang.eval_whole_program
+         Lang.eval_single_program
          Lang.Vtrue
          Lang.Vfalse
          LangTest.LoadStore.program
@@ -44,7 +45,7 @@ Separate Extraction
          LangTest.Control.program
          LangTest.DoubleReturn.program
          LangTest.MultiCore.programs
-         LangTest.MultiCore2.programs
+         LangTest.MultiCore2.sem
          LangTest.MultiModule.isem
          LangTest.MultiModuleGenv.isem
          LangTest.MultiModuleLocalState.isem
