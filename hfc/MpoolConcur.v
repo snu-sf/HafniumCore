@@ -670,7 +670,7 @@ Module TEST.
     Definition sz: nat := 3.
     Definition pte_paddr_begin: nat := 4000.
 
-    Definition main (p: var): stmt :=
+    Definition main (p i r: var): stmt :=
       p #:= Vptr None [0: val ; 0: val ; 0: val ] #;
       Debug "calling init" Vnull #;
       Call "init" [CBR p] #;
@@ -680,9 +680,18 @@ Module TEST.
       "GMPOOL" #:= p #;
       Debug "gvar assign done" p #;
       #while ("SIGNAL" <= 1) do (Debug "waiting for SIGNAL" Vnull #; Yield) #;
-      p #:= (Call "Lock.lock" [CBV (Load p lock_ofs)]) #;
-      #put p
+      (* p #:= (Call "Lock.lock" [CBV (Load p lock_ofs)]) #; *)
+      (* #put p *)
+      i #:= MAX #;
+      #while i
+      do (
+        i #:= i-1 #;
+        r #:= Call "alloc_contiguous" [CBR p ; CBV 1] #;
+        #assume r
+      ) #;
+      Put "Test4 Passed" Vnull
     .
+
     Definition alloc_and_free
                (p i r0 r1 r2: var): stmt :=
       #while (! "GMPOOL") do (Debug "waiting for GMPOOL" Vnull #; Yield) #;
@@ -710,14 +719,14 @@ Module TEST.
         Skip
       ) #;
       Debug "calling fini" Vnull #;
-      Put "FINISHING" p #;
+      (* Put "FINISHING" p #; *)
       Call "fini" [CBR p] #;
       "SIGNAL" #:= "SIGNAL" + 1 #;
       Skip
     .
 
     Definition mainF: function.
-      mk_function_tac main ([]: list var) ["p" ]. Defined.
+      mk_function_tac main ([]: list var) ["p" ; "i" ; "r"]. Defined.
     Definition alloc_and_freeF: function.
       (* mk_function_tac alloc_and_free ([]: list var) ["p" ; "i" ; "r"]. Defined. *)
       mk_function_tac alloc_and_free ([]: list var) ["p" ; "i" ; "r0" ; "r1" ; "r2"].

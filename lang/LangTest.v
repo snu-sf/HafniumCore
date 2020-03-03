@@ -798,6 +798,7 @@ Module MultiModuleMultiCoreLocalState.
   Definition getter: stmt :=
     #while "SIGNAL" == 0 do Yield #;
     #assume ((Call "f" []) == 10) #;
+    Put "Test(MultiModuleMultiCoreLocalState) passed" Vnull #;
     Skip
   .
 
