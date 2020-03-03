@@ -214,7 +214,7 @@ Module LangNotations.
 
   Bind Scope stmt_scope with stmt.
 
-  Notation "x '#:=' e" :=
+  Notation "x '#=' e" :=
     (Assign x e) (at level 60, e at level 50): stmt_scope.
 
   Notation "a '#;' b" :=
@@ -604,7 +604,7 @@ Section Denote.
          if (length f.(params) =? length args)%nat
          then
            trigger PushEnv ;;
-           let new_body := fold_left (fun s i => (fst i) #:= (Val (snd i)) #; s)
+           let new_body := fold_left (fun s i => (fst i) #= (Val (snd i)) #; s)
                                      (* YJ: Why coercion does not work ?? *)
                                      (combine f.(params) args) f.(body) in
            '(_, retv) <- denote_stmt ctx f new_body ;;
@@ -640,11 +640,11 @@ Section Example_Fact.
   Variable output: var.
 
   Definition fact (n:nat): stmt :=
-    input #:= n#;
-    output #:= 1#;
+    input #= n#;
+    output #= 1#;
     #while input
-    do output #:= output * input#;
-       input  #:= input - Vnat 1.
+    do output #= output * input#;
+       input  #= input - Vnat 1.
 
   (** We have given _a_ notion of denotation to [fact 6] via [denote_imp].
       However, this is naturally not actually runnable yet, since it contains

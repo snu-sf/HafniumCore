@@ -66,23 +66,23 @@ Set Implicit Arguments.
 Module LoadStore.
 
   Definition main x sum: stmt :=
-    sum #:= Vnat 0#;
-        x #:= Vptr None (repeat (Vnat 0) 3)#;
-        #put x#;
-        (Store x 0 10)#;
-        #put x#;
-        (Store x 1 20)#;
-        #put x#;
-        (Store x 2 30)#;
-        #put x#;
-        #put sum#;
-        sum #:= sum + (Load x 0)#;
-                                #put sum#;
-                                sum #:= sum + (Load x 1)#;
-                                                        #put sum#;
-                                                        sum #:= sum + (Load x 2)#;
-                                                                                #put sum#;
-                                                                                Skip
+    sum #= Vnat 0#;
+    x #= Vptr None (repeat (Vnat 0) 3)#;
+    #put x#;
+    (Store x 0 10)#;
+    #put x#;
+    (Store x 1 20)#;
+    #put x#;
+    (Store x 2 30)#;
+    #put x#;
+    #put sum#;
+    sum #= sum + (Load x 0)#;
+    #put sum#;
+    sum #= sum + (Load x 1)#;
+    #put sum#;
+    sum #= sum + (Load x 2)#;
+    #put sum#;
+    Skip
   .
 
   Definition function: function. mk_function_tac main ([]: list var) ["x" ; "sum"]. Defined.
@@ -113,10 +113,10 @@ Module Rec.
 
   Definition f x y r: stmt :=
     (#if x
-      then (y #:= (x - 1) #;
-              r #:= (Call "f" [CBV y]) #;
-              r #:= r + x)
-      else (r #:= 0)
+      then (y #= (x - 1) #;
+              r #= (Call "f" [CBV y]) #;
+              r #= r + x)
+      else (r #= 0)
     )
       #;
       Return r
@@ -125,8 +125,8 @@ Module Rec.
   Definition f_function: function. mk_function_tac f ["x"] ["local0" ; "local1"]. Defined.
 
   Definition main x r: stmt :=
-    x #:= 10 #;
-      r #:= (Call "f" [CBV x]) #;
+    x #= 10 #;
+      r #= (Call "f" [CBV x]) #;
       #put r
   .
 
@@ -144,10 +144,10 @@ Module MutRec.
 
   Definition f x y r: stmt :=
     (#if x
-      then (y #:= (x - 1) #;
-              r #:= (Call "g" [CBV y]) #;
-              r #:= r + x)
-      else (r #:= 0)
+      then (y #= (x - 1) #;
+              r #= (Call "g" [CBV y]) #;
+              r #= r + x)
+      else (r #= 0)
     )
       #;
       Return r
@@ -155,10 +155,10 @@ Module MutRec.
 
   Definition g x y r: stmt :=
     (#if x
-      then (y #:= (x - 1) #;
-              r #:= (Call "f" [CBV y]) #;
-              r #:= r + x)
-      else (r #:= 0)
+      then (y #= (x - 1) #;
+              r #= (Call "f" [CBV y]) #;
+              r #= r + x)
+      else (r #= 0)
     )
       #;
       Return r
@@ -179,24 +179,24 @@ End MutRec.
 Module Move.
   Definition f (x accu y unused: var): stmt :=
     (#if x
-      then (y #:= (x - 1) #;
+      then (y #= (x - 1) #;
               (* Put "before call" accu #; *)
-              unused #:= (Call "f" [CBV y ; CBR accu]) #;
+              unused #= (Call "f" [CBV y ; CBR accu]) #;
               (* Put "after call" accu #; *)
-              accu #:= accu + x #;
+              accu #= accu + x #;
                                 Skip
            )
       else
-        (accu #:= 0)
+        (accu #= 0)
     )
       #;
       Return 77777
   .
 
   Definition main x accu unused: stmt :=
-    x #:= 10 #;
-      accu #:= 1000 #;
-      unused #:= (Call "f" [CBV x ; CBR accu]) #;
+    x #= 10 #;
+      accu #= 1000 #;
+      unused #= (Call "f" [CBV x ; CBR accu]) #;
       #put accu
   .
 
@@ -232,7 +232,7 @@ Module CoqCode.
   Extract Constant coqcode => "fun _ -> coq_Vtrue".
 
   Definition main x: stmt :=
-    x #:= 25 #;
+    x #= 25 #;
       (#if (CoqCode [Var x] coqcode)
         then #put 555
         else #put 666)
@@ -250,28 +250,28 @@ End CoqCode.
 Module Control.
 
   Definition f ctrl ret iter: stmt :=
-    iter #:= 10 #;
-    ret #:= 0 #;
+    iter #= 10 #;
+    ret #= 0 #;
     (* #put ctrl #; *)
     (* #put iter #; *)
     (* #put ret #; *)
     (* #put 7777777 #; *)
     #while iter
      do (
-          iter #:= iter - 1#;
+          iter #= iter - 1#;
           (* 0 --> break *)
           (* 1 --> continue *)
           (* 2 --> return *)
           (* 3 --> normal *)
           #if ctrl == 0 then Break else Skip #;
           (* #put 1111 #; *)
-          ret #:= ret + 1 #;
+          ret #= ret + 1 #;
           #if ctrl == 1 then Continue else Skip #;
           (* #put 2222 #; *)
-          ret #:= ret + 10 #;
+          ret #= ret + 10 #;
           #if ctrl == 2 then (Return (ret + 100)) else Skip #;
           (* #put 3333 #; *)
-          ret #:= ret + 1000 #;
+          ret #= ret + 1000 #;
 
           Skip
           ) #;
@@ -281,10 +281,10 @@ Module Control.
   Definition f_function: function. mk_function_tac f ["ctrl"] ["local0" ; "local1"]. Defined.
 
   Definition main r: stmt :=
-    r #:= (Call "f" [CBV 0]) #; #assume (r == 0) #;
-    r #:= (Call "f" [CBV 1]) #; #assume (r == 10) #;
-    r #:= (Call "f" [CBV 2]) #; #assume (r == 111) #;
-    r #:= (Call "f" [CBV 3]) #; #assume (r == 10110) #;
+    r #= (Call "f" [CBV 0]) #; #assume (r == 0) #;
+    r #= (Call "f" [CBV 1]) #; #assume (r == 10) #;
+    r #= (Call "f" [CBV 2]) #; #assume (r == 111) #;
+    r #= (Call "f" [CBV 3]) #; #assume (r == 10110) #;
     Skip
   .
 
@@ -307,7 +307,7 @@ Module DoubleReturn.
   Definition f_function: function. mk_function_tac f ([]: list var) ([]: list var). Defined.
 
   Definition main r :=
-    r #:= (Call "f" []) #;
+    r #= (Call "f" []) #;
     #assume (r == 0) #;
     Skip
   .
@@ -352,10 +352,10 @@ End MultiCore.
 Module MultiCore2.
 
   Definition observer i: stmt :=
-    i #:= 20 #;
+    i #= 20 #;
     #while i
     do (
-      i #:= i -1 #;
+      i #= i -1 #;
       #assume ("GVAR" % 2 == 0) #;
       Yield
     ) #;
@@ -364,12 +364,12 @@ Module MultiCore2.
   .
 
   Definition adder i: stmt :=
-    i #:= 20 #;
+    i #= 20 #;
     #while i
     do (
-      i #:= i - 1 #;
-      "GVAR" #:= "GVAR" + 1 #;
-      "GVAR" #:= "GVAR" + 1 #;
+      i #= i - 1 #;
+      "GVAR" #= "GVAR" + 1 #;
+      "GVAR" #= "GVAR" + 1 #;
       Yield
     )
   .
@@ -403,27 +403,27 @@ End MultiCore2.
 Module MultiCoreMPSC.
 
   Definition producer i: stmt :=
-    i #:= 10 #;
+    i #= 10 #;
     #while i
     do (
       Debug "PRODUCER: " i #;
       #if "GVAR" == 0
-       then ("GVAR" #:= i #; i #:= i-1)
+       then ("GVAR" #= i #; i #= i-1)
        else Skip #;
       Yield
     ) #;
-    "SIGNAL" #:= "SIGNAL" + 1
+    "SIGNAL" #= "SIGNAL" + 1
   .
 
   Definition consumer s: stmt :=
-    s #:= 0 #;
+    s #= 0 #;
     #while true
     do (
       Debug "CONSUMER: " s #;
       #if "GVAR" == 0
        then Skip
-       else s #:= s + "GVAR" #;
-            "GVAR" #:= 0
+       else s #= s + "GVAR" #;
+            "GVAR" #= 0
       #;
       #if "SIGNAL" == 2 then Break else Skip #;
       Yield
@@ -453,10 +453,10 @@ Module MultiModule.
 
   Definition f x y r: stmt :=
     (#if x
-      then (y #:= (x - 1) #;
-              r #:= (Call "g" [CBV y]) #;
-              r #:= r + x)
-      else (r #:= 0)
+      then (y #= (x - 1) #;
+              r #= (Call "g" [CBV y]) #;
+              r #= r + x)
+      else (r #= 0)
     )
     #;
     Return r
@@ -464,10 +464,10 @@ Module MultiModule.
 
   Definition g x y r: stmt :=
     (#if x
-      then (y #:= (x - 1) #;
-              r #:= (Call "f" [CBV y]) #;
-              r #:= r + x)
-      else (r #:= 0)
+      then (y #= (x - 1) #;
+              r #= (Call "f" [CBV y]) #;
+              r #= r + x)
+      else (r #= 0)
     )
     #;
     Return r
@@ -493,12 +493,12 @@ End MultiModule.
 Module MultiModuleGenv.
 
   Definition f: stmt :=
-    "GVAR1" #:= 1000 #;
+    "GVAR1" #= 1000 #;
     Return "GVAR2"
   .
 
   Definition g: stmt :=
-    "GVAR2" #:= 2000 #;
+    "GVAR2" #= 2000 #;
     Return "GVAR1"
   .
 
@@ -583,10 +583,10 @@ Module MultiModuleLocalState.
 
   Definition g x y r: stmt :=
     (#if x
-      then (y #:= (x - 1) #;
-              r #:= (Call "f" [CBV y]) #;
-              r #:= r + x)
-      else (r #:= 0)
+      then (y #= (x - 1) #;
+              r #= (Call "f" [CBV y]) #;
+              r #= r + x)
+      else (r #= 0)
     )
     #;
     Return r
@@ -595,28 +595,28 @@ Module MultiModuleLocalState.
   Definition g_program: program := [("g", g_function)].
 
   Definition main r: stmt :=
-      r #:= (Call "f" [CBV 10]) #;
+      r #= (Call "f" [CBV 10]) #;
       #put r #;
 
       #put 99999 #;
       #put 99999 #;
       #put 99999 #;
 
-      r #:= (Call "f" [CBV 10]) #;
+      r #= (Call "f" [CBV 10]) #;
       #put r #;
 
       #put 99999 #;
       #put 99999 #;
       #put 99999 #;
 
-      r #:= (Call "f" [CBV 5]) #;
+      r #= (Call "f" [CBV 5]) #;
       #put r #;
 
       #put 99999 #;
       #put 99999 #;
       #put 99999 #;
 
-      r #:= (Call "f" [CBV 8]) #;
+      r #= (Call "f" [CBV 8]) #;
       #put r #;
 
       Skip
@@ -676,16 +676,16 @@ Module MultiModuleLocalStateSimple.
   Definition main r: stmt :=
       (Call "f" [CBV 10]) #;
       (Call "g" []) #;
-      Yield #; r #:= (Call "f" []) #;
+      Yield #; r #= (Call "f" []) #;
       #assume (r == 10) #;
       Debug "passed 1" Vnull #;
       (Call "g" []) #;
-      Yield #; r #:= (Call "f" []) #;
+      Yield #; r #= (Call "f" []) #;
       #assume (r == 10) #;
       Debug "passed 2" Vnull #;
       Yield #; (Call "f" [CBV 20]) #;
       (Call "g" []) #;
-      Yield #; r #:= (Call "f" []) #;
+      Yield #; r #= (Call "f" []) #;
       #assume (r == 20) #;
       Debug "passed 3" Vnull #;
       Put "Test(MultiModuleLocalStateSimple) passed" Vnull #;
@@ -712,27 +712,27 @@ End MultiModuleLocalStateSimple.
 Module MultiModuleMultiCore.
 
   Definition producer i: stmt :=
-    i #:= 10 #;
+    i #= 10 #;
     #while i
     do (
       Debug "PRODUCER: " i #;
       #if "GVAR" == 0
-       then ("GVAR" #:= i #; i #:= i-1)
+       then ("GVAR" #= i #; i #= i-1)
        else Skip #;
       Yield
     ) #;
-    "SIGNAL" #:= "SIGNAL" + 1
+    "SIGNAL" #= "SIGNAL" + 1
   .
 
   Definition consumer s: stmt :=
-    s #:= 0 #;
+    s #= 0 #;
     #while true
     do (
       Debug "CONSUMER: " s #;
       #if "GVAR" == 0
        then Skip
-       else s #:= s + "GVAR" #;
-            "GVAR" #:= 0
+       else s #= s + "GVAR" #;
+            "GVAR" #= 0
       #;
       #if "SIGNAL" == 2 then Break else Skip #;
       Yield
@@ -791,7 +791,7 @@ Module MultiModuleMultiCoreLocalState.
 
   Definition setter: stmt :=
     (Call "f" [CBV 10]) #;
-    "SIGNAL" #:= 1 #;
+    "SIGNAL" #= 1 #;
     Skip
   .
 
