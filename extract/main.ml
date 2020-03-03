@@ -97,8 +97,8 @@ let handle_Event = fun e k ->
   | ESyscall ('p'::[], msg, v::[]) ->
      print_string (cl2s msg) ; print_val v ; k (Obj.magic ())
   | ESyscall ('d'::[], msg, vs) ->
-     (* print_string "<DEBUG> " ; print_string (cl2s msg) ;
-      * print_endline (string_of_vals vs) ; *)
+     print_string "<DEBUG> " ; print_string (cl2s msg) ;
+     print_endline (string_of_vals vs) ;
      k (Obj.magic ())
   | ESyscall ('g'::[], _,   []) ->
      let x = read_int() in k (Obj.magic (Vnat (Nat.of_int x)))
@@ -192,6 +192,10 @@ let main =
    * my_rr (List.map eval_program Concur.programs) ; *)
   (* print_endline "-----------------------------------------------------------" ;
    * run (round_robin (fun _ -> shuffle) (List.map eval_program MultiCore.programs)) ; *)
+
+  if false
+  then begin
+
   print_endline "-----------------------------------------------------------" ;
   run (MultiCore2.sem) ;
   print_endline "-----------------------------------------------------------" ;
@@ -208,9 +212,6 @@ let main =
   run (MultiModuleLocalStateSimple.isem2) ;
   print_endline "-----------------------------------------------------------" ;
   run (MultiModuleGenv.isem) ;
-
-  (* print_endline "-----------------------------------------------------------" ;
-   * run (eval_program MpoolSeq.TEST.TEST1.program) ; *)
 
   print_endline "-----------------------------------------------------------" ;
   run (eval_whole_program MpoolSeq.TEST.TEST2.program) ;
@@ -230,5 +231,10 @@ let main =
   print_endline "-----------------------------------------------------------" ;
   run (MpoolConcur.TEST.TEST3.isem1) ;
   run (MpoolConcur.TEST.TEST3.isem2) ;
+
+  end;
+
+  print_endline "-----------------------------------------------------------" ;
+  run (MpoolConcur.TEST.TEST4.isem) ;
 
   ()

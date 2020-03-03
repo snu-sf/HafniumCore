@@ -156,6 +156,63 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
     Skip
   .
 
+  (* void mpool_fini(struct mpool *p) *)
+  (* { *)
+  (* 	struct mpool_entry *entry; *)
+  (* 	struct mpool_chunk *chunk; *)
+
+  (* 	if (!p->fallback) { *)
+  (* 		return; *)
+  (* 	} *)
+
+  (* 	mpool_lock(p); *)
+
+  (* 	/* Merge the freelist into the fallback. */ *)
+  (* 	entry = p->entry_list; *)
+  (* 	while (entry != NULL) { *)
+  (* 		void *ptr = entry; *)
+
+  (* 		entry = entry->next; *)
+  (* 		mpool_free(p->fallback, ptr); *)
+  (* 	} *)
+
+  (* 	/* Merge the chunk list into the fallback. */ *)
+  (* 	chunk = p->chunk_list; *)
+  (* 	while (chunk != NULL) { *)
+  (* 		void *ptr = chunk; *)
+  (* 		size_t size = (uintptr_t)chunk->limit - (uintptr_t)chunk; *)
+
+  (* 		chunk = chunk->next_chunk; *)
+  (* 		mpool_add_chunk(p->fallback, ptr, size); *)
+  (* 	} *)
+
+  (* 	p->chunk_list = NULL; *)
+  (* 	p->entry_list = NULL; *)
+  (* 	p->fallback = NULL; *)
+
+  (* 	mpool_unlock(p); *)
+  (* } *)
+  (*** Reversed instruction order ***)
+  Definition fini (p: var)
+             (chunk size: var): stmt :=
+    #if !(Load p fallback_ofs)
+     then Return Vnull
+     else Skip #;
+    p #:= (Call "Lock.lock" [CBV (Load p lock_ofs)]) #;
+    chunk #:= (Load p chunk_list_ofs) #;
+    #while (chunk)
+    do (
+      size #:= (Load chunk limit_ofs) #;
+      (*** Below two instructions' order is reversed from original code ***)
+      Call "add_chunk" [CBV (Load p fallback_ofs) ; CBV chunk ; CBV size] #;
+      chunk #:= (Load chunk next_chunk_ofs)
+    ) #;
+    Store p chunk_list_ofs Vnull #;
+    Store p fallback_ofs Vnull #;
+    (Call "Lock.unlock" [CBV (Load p lock_ofs) ; CBV p]) #;
+    Skip
+  .
+
   (* void *mpool_alloc_contiguous(struct mpool *p, size_t count, size_t align) *)
   (* { *)
   (*   do { *)
@@ -180,16 +237,20 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
      then Skip
      else Guarantee
     #;
+    Debug "[alloc_contiguous] locking" Vnull #;
     p #:= (Call "Lock.lock" [CBV (Load p lock_ofs)]) #;
     next #:= (Load p chunk_list_ofs) #;
+    Debug "[alloc_contiguous] calling alloc_contiguous_no_fallback" Vnull #;
     ret #:= (Call "alloc_contiguous_no_fallback" [CBR next ; CBV count]) #;
     Store p chunk_list_ofs next #;
+    Debug "[alloc_contiguous] unlocking" Vnull #;
     (Call "Lock.unlock" [CBV (Load p lock_ofs) ; CBV p]) #;
     #if (ret)
      then (Return ret)
      else (
          nextp #:= (Load p fallback_ofs) #;
          #if (! nextp) then Return Vnull else Skip #;
+         Debug "[alloc_contiguous] calling alloc_contiguous" Vnull #;
          ret #:= (Call "alloc_contiguous" [CBR nextp ; CBV count]) #;
          (Store p fallback_ofs nextp) #;
          Return ret
@@ -320,6 +381,8 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
   Definition initF: function. mk_function_tac init ["p"] ([]: list var). Defined.
   Definition init_with_fallbackF: function.
     mk_function_tac init_with_fallback ["p" ; "fb"] ([]: list var). Defined.
+  Definition finiF: function.
+    mk_function_tac fini ["p" ] ["chunk" ; "size"]. Defined.
   Definition alloc_contiguousF: function.
     mk_function_tac alloc_contiguous ["p" ; "count"] ["ret" ; "next" ; "nextp"]. Defined.
   Definition alloc_contiguous_no_fallbackF: function.
@@ -604,63 +667,68 @@ Module TEST.
 
   Module TEST4.
 
-    Definition main
-               (p0 p1 p2 r: var): stmt :=
-      p0 #:= Vptr None [0: val ; 0: val ; 0: val ] #;
-      p1 #:= Vptr None [0: val ; 0: val ; 0: val ] #;
-      p2 #:= Vptr None [0: val ; 0: val ; 0: val ] #;
-      Call "init" [CBR p2] #;
-      Call "init_with_fallback" [CBR p1 ; CBV p2] #;
-      Call "init_with_fallback" [CBR p0 ; CBV p1] #;
-      Call "add_chunk" [CBR p0 ; CBV (big_chunk 500  1) ; CBV 1] #;
-      Call "add_chunk" [CBR p1 ; CBV (big_chunk 1500 3) ; CBV 3] #;
-      Call "add_chunk" [CBR p2 ; CBV (big_chunk 2500 2) ; CBV 2] #;
-      Debug "p2:                    " p2 #;
-      Debug "p1:                    " p1 #;
-      Debug "p0:                    " p0 #;
+    Definition MAX: nat := 20.
+    Definition sz: nat := 3.
+    Definition pte_paddr_begin: nat := 4000.
 
-
-
-      Debug "" Vnull #;
-      Debug "INIT DONE" Vnull #;
-      Debug "" Vnull #;
-
-      Debug "p0:                    " p0 #;
-      r #:= Call "alloc_contiguous" [CBR p0 ; CBV 1] #;
-      #if r then Skip else Assume #;
-      Debug "p0:                    " p0 #;
-      r #:= Call "alloc_contiguous" [CBR p0 ; CBV 2] #;
-      #if r then Skip else Assume #;
-      Debug "p0:                    " p0 #;
-      r #:= Call "alloc_contiguous" [CBR p0 ; CBV 3] #;
-      #if r then Assume else Skip #;
-      Debug "p0:                    " p0 #;
-      r #:= Call "alloc_contiguous" [CBR p0 ; CBV 2] #;
-      #if r then Skip else Assume #;
-      Debug "p0:                    " p0 #;
-      r #:= Call "alloc_contiguous" [CBR p0 ; CBV 1] #;
-      #if r then Skip else Assume #;
-      Debug "p0:                    " p0 #;
-      r #:= Call "alloc_contiguous" [CBR p0 ; CBV 1] #;
-      #if r then Assume else Skip #;
-      Put "Test3 Passed" Vnull #;
+    Definition main (p: var): stmt :=
+      p #:= Vptr None [0: val ; 0: val ; 0: val ] #;
+      Debug "calling init" Vnull #;
+      Call "init" [CBR p] #;
+      Debug "init done, calling add_chunk" p #;
+      Call "add_chunk" [CBR p ; CBV (big_chunk pte_paddr_begin MAX) ; CBV MAX] #;
+      Debug "add_chunk done" p #;
+      "GMPOOL" #:= p #;
+      Debug "gvar assign done" p #;
+      #while ("SIGNAL" <= 1) do (Debug "waiting for SIGNAL" Vnull #; Yield) #;
+      #put p
+    .
+    Definition alloc_and_free
+               (p i r: var): stmt :=
+      #while (! "GMPOOL") do (Debug "waiting for GMPOOL" Vnull #; Yield) #;
+      Debug "ALLOC_AND_FREE START" Vnull #;
+      Yield #;   i #:= MAX #;
+      Yield #;   p #:= Vptr None [0: val ; 0: val ; 0: val ] #;
+      Debug "init-with-fallback start" Vnull #;
+      Yield #;   Call "init_with_fallback" [CBR p ; CBV "GMPOOL"] #;
+      Debug "init-with-fallback done" Vnull #;
+      #while i
+      do (
+        Debug "looping, i is: " i #;
+        Yield #;   i #:= i - 1 #;
+        Debug "calling alloc_contiguous" Vnull #;
+        Yield #;   r #:= Call "alloc_contiguous" [CBR p ; CBV sz] #;
+        Debug "calling add_chunk" Vnull #;
+        Yield #;   Call "add_chunk" [CBR p ; CBV r ; CBV sz] #;
+        Skip
+      ) #;
+      Debug "calling fini" Vnull #;
+      Call "fini" [CBR p] #;
+      "SIGNAL" #:= "SIGNAL" + 1 #;
       Skip
     .
+
     Definition mainF: function.
-      mk_function_tac main ([]: list var) ["p" ; "r1" ; "r2" ; "r3"]. Defined.
+      mk_function_tac main ([]: list var) ["p" ]. Defined.
+    Definition alloc_and_freeF: function.
+      mk_function_tac alloc_and_free ([]: list var) ["p" ; "i" ; "r"]. Defined.
 
     Definition program: program :=
       [
         ("main", mainF) ;
+          ("alloc_and_free", alloc_and_freeF) ;
           ("init", initF) ;
           ("init_with_fallback", init_with_fallbackF) ;
+          ("fini", finiF) ;
           ("alloc_contiguous", alloc_contiguousF) ;
           ("alloc_contiguous_no_fallback", alloc_contiguous_no_fallbackF) ;
           ("add_chunk", add_chunkF)
       ].
 
+    Definition modsems: list ModSem := [program_to_ModSem program ; LOCK.modsem].
+
     Definition isem: itree Event unit :=
-      eval_multimodule [program_to_ModSem program ; LOCK.modsem].
+      eval_multimodule_multicore modsems [ "main" ; "alloc_and_free" ; "alloc_and_free" ].
 
   End TEST4.
 

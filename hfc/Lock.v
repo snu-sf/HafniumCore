@@ -129,7 +129,13 @@ Module LOCK.
          (* triggerSyscall "d" "lock-lock looking for: " [Vnat id] ;; *)
             (* (trigger (LockE id)) >>= unwrapN >>= fun v => Ret (v, []) *)
 
-            v <- (ITree.iter (fun _ => trigger EYield ;; trigger (TryLockE id)) tt) ;;
+            (* v <- (ITree.iter (fun _ => trigger EYield ;; trigger (TryLockE id)) tt) ;; *)
+            v <- (ITree.iter (fun _ =>
+                                v <- trigger (TryLockE id) ;;
+                                  match v: unit + val with
+                                  | inl _ => trigger EYield ;; Ret (inl tt)
+                                  | inr v => Ret (inr v)
+                                  end) tt) ;;
             triggerSyscall "d" "lock-lock   ---> " [Vnat id ; v] ;;
             Ret (v, [])
             (* v <- trigger (TryLockE id) ;; *)
