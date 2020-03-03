@@ -666,8 +666,6 @@ Module TEST.
   Module TEST4.
 
     Definition MAX: nat := 20.
-    Definition N: nat := 3.
-    Definition sz: nat := 3.
     Definition pte_paddr_begin: nat := 4000.
 
     Definition main (p i r: var): stmt :=
@@ -680,8 +678,13 @@ Module TEST.
       "GMPOOL" #:= p #;
       Debug "gvar assign done" p #;
       #while ("SIGNAL" <= 1) do (Debug "waiting for SIGNAL" Vnull #; Yield) #;
-      (* p #:= (Call "Lock.lock" [CBV (Load p lock_ofs)]) #; *)
-      (* #put p *)
+
+      (*** JUST FOR PRINTING -- START ***)
+      p #:= (Call "Lock.lock" [CBV (Load p lock_ofs)]) #;
+      Put "Free done: " p #;
+      (Call "Lock.unlock" [CBV (Load p lock_ofs) ; CBV p]) #;
+      (*** JUST FOR PRINTING -- END ***)
+
       i #:= MAX #;
       #while i
       do (
@@ -692,11 +695,11 @@ Module TEST.
       Put "Test4 Passed" Vnull
     .
 
-    Definition alloc_and_free
+    Definition alloc_and_free (sz: nat)
                (p i r0 r1 r2: var): stmt :=
       #while (! "GMPOOL") do (Debug "waiting for GMPOOL" Vnull #; Yield) #;
       Debug "ALLOC_AND_FREE START" Vnull #;
-      Yield #;   i #:= N #;
+      Yield #;   i #:= MAX #;
       Yield #;   p #:= Vptr None [0: val ; 0: val ; 0: val ] #;
       Debug "init-with-fallback start" Vnull #;
       Yield #;   Call "init_with_fallback" [CBR p ; CBV "GMPOOL"] #;
@@ -709,15 +712,16 @@ Module TEST.
         Yield #;   r0 #:= Call "alloc_contiguous" [CBR p ; CBV sz] #;
         Yield #;   r1 #:= Call "alloc_contiguous" [CBR p ; CBV sz] #;
         Yield #;   r2 #:= Call "alloc_contiguous" [CBR p ; CBV sz] #;
-        #assume r0 #;
-        #assume r1 #;
-        #assume r2 #;
+        Yield #;   #assume r0 #;
+        Yield #;   #assume r1 #;
+        Yield #;   #assume r2 #;
         Debug "calling add_chunk" Vnull #;
         Yield #;   Call "add_chunk" [CBR p ; CBV r0 ; CBV sz] #;
         Yield #;   Call "add_chunk" [CBR p ; CBV r1 ; CBV sz] #;
         Yield #;   Call "add_chunk" [CBR p ; CBV r2 ; CBV sz] #;
         Skip
       ) #;
+      Put "Consume done: " p #;
       Debug "calling fini" p #;
       Call "fini" [CBR p] #;
       "SIGNAL" #:= "SIGNAL" + 1 #;
@@ -726,15 +730,20 @@ Module TEST.
 
     Definition mainF: function.
       mk_function_tac main ([]: list var) ["p" ; "i" ; "r"]. Defined.
-    Definition alloc_and_freeF: function.
+    Definition alloc_and_free2F: function.
       (* mk_function_tac alloc_and_free ([]: list var) ["p" ; "i" ; "r"]. Defined. *)
-      mk_function_tac alloc_and_free ([]: list var) ["p" ; "i" ; "r0" ; "r1" ; "r2"].
+      mk_function_tac (alloc_and_free 2) ([]: list var) ["p" ; "i" ; "r0" ; "r1" ; "r2"].
+    Defined.
+    Definition alloc_and_free4F: function.
+      (* mk_function_tac alloc_and_free ([]: list var) ["p" ; "i" ; "r"]. Defined. *)
+      mk_function_tac (alloc_and_free 4) ([]: list var) ["p" ; "i" ; "r0" ; "r1" ; "r2"].
     Defined.
 
     Definition program: program :=
       [
         ("main", mainF) ;
-          ("alloc_and_free", alloc_and_freeF) ;
+          ("alloc_and_free2", alloc_and_free2F) ;
+          ("alloc_and_free4", alloc_and_free4F) ;
           ("init", initF) ;
           ("init_with_fallback", init_with_fallbackF) ;
           ("fini", finiF) ;
@@ -746,7 +755,8 @@ Module TEST.
     Definition modsems: list ModSem := [program_to_ModSem program ; LOCK.modsem].
 
     Definition isem: itree Event unit :=
-      eval_multimodule_multicore modsems [ "main" ; "alloc_and_free" ; "alloc_and_free" ].
+      eval_multimodule_multicore
+        modsems [ "main" ; "alloc_and_free2" ; "alloc_and_free4" ].
 
   End TEST4.
 
