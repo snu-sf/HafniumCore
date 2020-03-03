@@ -741,7 +741,7 @@ Definition ignore_l {A B}: itree (A +' B) ~> itree B :=
             end)
 .
 
-Definition eval_program (p: program): itree Event unit :=
+Definition eval_whole_program (p: program): itree Event unit :=
     let i0 := (interp_LocalE (denote_program p) []) in
     let i1 := (interp_GlobalE i0 []) in
     @ignore_l CallExternalE Event _ (ITree.ignore i1)
