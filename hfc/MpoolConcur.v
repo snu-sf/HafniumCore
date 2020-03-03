@@ -72,7 +72,7 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
   Definition limit_ofs := 1.
 
   (* Definition entry_size: nat := 4. *)
-  Definition entry_size: nat := 2.
+  Definition entry_size: nat := 3.
 
   Fixpoint chunk_list_wf (chunk_list: val): bool :=
     match chunk_list with
@@ -746,15 +746,15 @@ Module TEST.
     Definition alloc_and_free2F: function.
       mk_function_tac (alloc_and_free 2) ([]: list var) ["p" ; "i" ; "r0" ; "r1" ; "r2"].
     Defined.
-    Definition alloc_and_free4F: function.
-      mk_function_tac (alloc_and_free 4) ([]: list var) ["p" ; "i" ; "r0" ; "r1" ; "r2"].
+    Definition alloc_and_free3F: function.
+      mk_function_tac (alloc_and_free 3) ([]: list var) ["p" ; "i" ; "r0" ; "r1" ; "r2"].
     Defined.
 
     Definition program: program :=
       [
         ("main", mainF) ;
           ("alloc_and_free2", alloc_and_free2F) ;
-          ("alloc_and_free4", alloc_and_free4F) ;
+          ("alloc_and_free3", alloc_and_free3F) ;
           ("init", initF) ;
           ("init_with_fallback", init_with_fallbackF) ;
           ("fini", finiF) ;
