@@ -121,6 +121,7 @@ Inductive expr : Type :=
 | Plus  (_ _ : expr)
 | Minus (_ _ : expr)
 | Mult  (_ _ : expr)
+| Mod   (_ _ : expr)
 | Div   (_ _ : expr)
 | Equal (_ _: expr)
 | Neg (_: expr)
@@ -196,6 +197,7 @@ Module LangNotations.
   Infix "+" := Plus : expr_scope.
   Infix "-" := Minus : expr_scope.
   Infix "*" := Mult : expr_scope.
+  Infix "%" := Mod (at level 40, left associativity) : expr_scope.
   Infix "/" := Div : expr_scope.
   Infix "==" := Equal : expr_scope.
   Infix "<=" := LE : expr_scope.
@@ -369,10 +371,15 @@ Section Denote.
                      | Vnat l, Vnat r => ret (Vnat (l * r))
                      | _, _ => triggerNB "expr-mult"
                      end
+    | Mod a b   => l <- denote_expr a ;; r <- denote_expr b ;;
+                     match l, r with
+                     | Vnat l, Vnat r => ret (Vnat (l mod r))
+                     | _, _ => triggerNB "expr-mod"
+                     end
     | Div a b   => l <- denote_expr a ;; r <- denote_expr b ;;
                      match l, r with
                      | Vnat l, Vnat r => ret (Vnat (l / r))
-                     | _, _ => triggerNB "expr-mult"
+                     | _, _ => triggerNB "expr-div"
                      end
     | Equal a b => l <- denote_expr a ;; r <- denote_expr b ;;
                      Ret (if val_dec l r then Vtrue else Vfalse)

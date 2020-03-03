@@ -359,6 +359,52 @@ End MultiCore.
 
 
 
+
+Module MultiCore2.
+
+  Definition observer i: stmt :=
+    i #:= 20 #;
+    #while i
+    do (
+      i #:= i -1 #;
+      #if "GVAR" % 2 == 0
+       then Skip
+       else Assume #;
+      Yield
+    ) #;
+    Put "Test(MultiCore2) passed" Vnull
+  .
+
+  Definition adder i: stmt :=
+    i #:= 20 #;
+    #while i
+    do (
+      i #:= i - 1 #;
+      "GVAR" #:= "GVAR" + 1 #;
+      "GVAR" #:= "GVAR" + 1 #;
+      Yield
+    )
+  .
+
+  Definition main: stmt :=
+    "GVAR" #:= 10 #; Yield
+  .
+
+  Definition observerF: function. mk_function_tac observer ([]: list var) (["i"]). Defined.
+  Definition adderF: function. mk_function_tac adder ([]: list var) (["i"]). Defined.
+  Definition mainF: function. mk_function_tac main ([]: list var) ([]: list var). Defined.
+
+  Definition observerP: program := [("main", observerF) ].
+  Definition adderP: program := [("main", adderF) ].
+  Definition mainP: program := [("main", mainF) ].
+
+  Definition programs: list Lang.program := [ observerP ; adderP ; adderP ; mainP ].
+
+End MultiCore2.
+
+
+
+
 Module MultiModule.
 
   Definition f x y r: stmt :=

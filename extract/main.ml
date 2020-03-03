@@ -185,13 +185,15 @@ let main =
    * print_endline "-----------------------------------" ;
    * run (eval_program Control.program) ;
    * print_endline "-----------------------------------" ;
-   * run (round_robin (fun _ -> shuffle) (List.map eval_program MultiCore.programs)) ;
-   * print_endline "-----------------------------------" ;
    * run (MultiModule.isem) ;
    * print_endline "-----------------------------------" ;
    * run (MultiModuleLocalState.isem) ; *)
   (* print_endline "-----------------------------------" ;
    * my_rr (List.map eval_program Concur.programs) ; *)
+  (* print_endline "-----------------------------------------------------------" ;
+   * run (round_robin (fun _ -> shuffle) (List.map eval_program MultiCore.programs)) ; *)
+  print_endline "-----------------------------------------------------------" ;
+  run (round_robin (fun _ -> shuffle) (List.map eval_program MultiCore2.programs)) ;
 
   print_endline "-----------------------------------------------------------" ;
   run (eval_program DoubleReturn.program) ;
