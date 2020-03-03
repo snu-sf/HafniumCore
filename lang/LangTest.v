@@ -69,18 +69,18 @@ Module LoadStore.
     sum #= Vnat 0#;
     x #= Vptr None (repeat (Vnat 0) 3)#;
     #put x#;
-    (Store x 0 10)#;
+    (x @ 0 #:= 10)#;
     #put x#;
-    (Store x 1 20)#;
+    (x @ 1 #:= 20)#;
     #put x#;
-    (Store x 2 30)#;
+    (x @ 2 #:= 30)#;
     #put x#;
     #put sum#;
-    sum #= sum + (Load x 0)#;
+    sum #= sum + (x #@ 0)#;
     #put sum#;
-    sum #= sum + (Load x 1)#;
+    sum #= sum + (x #@ 1)#;
     #put sum#;
-    sum #= sum + (Load x 2)#;
+    sum #= sum + (x #@ 2)#;
     #put sum#;
     Skip
   .

@@ -244,11 +244,11 @@ Module LangNotations.
   Notation "#guarantee e" :=
     (#if e then Skip else GuaranteeFail) (at level 60, e at level 50): stmt_scope.
 
-  (* Notation "x '#->' ofs '#:=' e" := *)
-  (*   (Store x ofs e) (at level 60, e at level 50): stmt_scope. *)
+  Notation "x '@' ofs '#:=' e" :=
+    (Store x ofs e) (at level 60, e at level 50): stmt_scope.
 
-  (* Notation "x '#->' ofs" := *)
-  (*   (Load x ofs) (at level 99): expr_scope. *)
+  Notation "x '#@' ofs" :=
+    (Load x ofs) (at level 99): expr_scope.
 
   Notation "#put e" :=
     (Put "" e) (at level 60, e at level 50): stmt_scope.

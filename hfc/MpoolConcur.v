@@ -131,10 +131,10 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
 
   (*** DELTA: Use function return value instead of borrowing && Add call to "Lock.unlock" **)
   Definition init (p: var): stmt :=
-    (Store p chunk_list_ofs Vnull) #;
-    (Store p fallback_ofs Vnull) #;
-    (Store p lock_ofs (Call "Lock.new" [])) #;
-    (Call "Lock.unlock" [CBV (Load p lock_ofs) ; CBV p]) #;
+    (p @ chunk_list_ofs #:= Vnull) #;
+    (p @ fallback_ofs   #:= Vnull) #;
+    (p @ lock_ofs       #:= (Call "Lock.new" [])) #;
+    (Call "Lock.unlock" [CBV (p #@ lock_ofs) ; CBV p]) #;
     Skip
   .
 
@@ -148,11 +148,11 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
   Definition init_with_fallback (p fallback: var): stmt :=
     (* Call "init" [CBR p] #; *)
     (* (Store p fallback_ofs fallback) #; *)
-    (* (Call "Lock.unlock" [CBV (Load p lock_ofs) ; CBV p]) #; *)
-    (Store p chunk_list_ofs Vnull) #;
-    (Store p fallback_ofs fallback) #;
-    (Store p lock_ofs (Call "Lock.new" [])) #;
-    (Call "Lock.unlock" [CBV (Load p lock_ofs) ; CBV p]) #;
+    (* (Call "Lock.unlock" [CBV (p #@ lock_ofs) ; CBV p]) #; *)
+    (p @ chunk_list_ofs #:= Vnull) #;
+    (p @ fallback_ofs   #:= fallback) #;
+    (p @ lock_ofs       #:= (Call "Lock.new" [])) #;
+    (Call "Lock.unlock" [CBV (p #@ lock_ofs) ; CBV p]) #;
     Skip
   .
 
@@ -195,21 +195,21 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
   (*** Reversed instruction order ***)
   Definition fini (p: var)
              (chunk size: var): stmt :=
-    #if !(Load p fallback_ofs)
+    #if !(p #@ fallback_ofs)
      then Return Vnull
      else Skip #;
-    p #= (Call "Lock.lock" [CBV (Load p lock_ofs)]) #;
-    chunk #= (Load p chunk_list_ofs) #;
+    p #= (Call "Lock.lock" [CBV (p #@ lock_ofs)]) #;
+    chunk #= (p #@ chunk_list_ofs) #;
     #while (chunk)
     do (
-      size #= (Load chunk limit_ofs) #;
+      size #= (chunk #@ limit_ofs) #;
       (*** Below two instructions' order is reversed from original code ***)
-      Call "add_chunk" [CBV (Load p fallback_ofs) ; CBV chunk ; CBV size] #;
-      chunk #= (Load chunk next_chunk_ofs)
+      Call "add_chunk" [CBV (p #@ fallback_ofs) ; CBV chunk ; CBV size] #;
+      chunk #= (chunk #@ next_chunk_ofs)
     ) #;
-    Store p chunk_list_ofs Vnull #;
-    Store p fallback_ofs Vnull #;
-    (Call "Lock.unlock" [CBV (Load p lock_ofs) ; CBV p]) #;
+    p @ chunk_list_ofs #:= Vnull #;
+    p @ fallback_ofs   #:= Vnull #;
+    (Call "Lock.unlock" [CBV (p #@ lock_ofs) ; CBV p]) #;
     Skip
   .
 
@@ -235,21 +235,21 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
              (ret next nextp: var): stmt :=
     #guarantee (CoqCode [p: expr] (fun p => mpool_wf (nth 0 p Vnull))) #;
     Debug "[alloc_contiguous] locking" Vnull #;
-    p #= (Call "Lock.lock" [CBV (Load p lock_ofs)]) #;
-    next #= (Load p chunk_list_ofs) #;
+    p #= (Call "Lock.lock" [CBV (p #@ lock_ofs)]) #;
+    next #= (p #@ chunk_list_ofs) #;
     Debug "[alloc_contiguous] calling alloc_contiguous_no_fallback" Vnull #;
     ret #= (Call "alloc_contiguous_no_fallback" [CBR next ; CBV count]) #;
-    Store p chunk_list_ofs next #;
+    p @ chunk_list_ofs #:= next #;
     Debug "[alloc_contiguous] unlocking" Vnull #;
-    (Call "Lock.unlock" [CBV (Load p lock_ofs) ; CBV p]) #;
+    (Call "Lock.unlock" [CBV (p #@ lock_ofs) ; CBV p]) #;
     #if (ret)
      then (Return ret)
      else (
-         nextp #= (Load p fallback_ofs) #;
+         nextp #= (p #@ fallback_ofs) #;
          #if (! nextp) then Return Vnull else Skip #;
          Debug "[alloc_contiguous] calling alloc_contiguous" Vnull #;
          ret #= (Call "alloc_contiguous" [CBR nextp ; CBV count]) #;
-         (Store p fallback_ofs nextp) #;
+         (p @ fallback_ofs #:= nextp) #;
          Return ret
        )
   .
@@ -305,20 +305,20 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
              (cur count: var)
              (ret next cur_ofs new_cur: var): stmt :=
     #if ! cur then Return Vnull else Skip #;
-    cur_ofs #= (Load cur limit_ofs) #;
+    cur_ofs #= (cur #@ limit_ofs) #;
     #if (count <= cur_ofs)
      then (
            (Debug "If1-limit: " cur_ofs) #;
            #if count == cur_ofs
             then (
                 ret #= (SubPointerTo cur (count * entry_size)) #;
-                cur #= (Load cur next_chunk_ofs) #;
+                cur #= (cur #@ next_chunk_ofs) #;
                 Return ret
               )
             else (
                 new_cur #= (SubPointerFrom cur (count * entry_size)) #;
-                Store new_cur next_chunk_ofs (Load cur next_chunk_ofs) #;
-                Store new_cur limit_ofs (cur_ofs - count) #;
+                new_cur @ next_chunk_ofs #:= (cur #@ next_chunk_ofs) #;
+                new_cur @ limit_ofs #:= (cur_ofs - count) #;
                 ret #= (SubPointerTo cur (count * entry_size)) #;
                 cur #= new_cur #;
                 Return ret
@@ -326,9 +326,9 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
           )
      else (
          (Debug "Else1-limit: " cur_ofs) #;
-         next #= (Load cur next_chunk_ofs) #;
+         next #= (cur #@ next_chunk_ofs) #;
          ret #= (Call "alloc_contiguous_no_fallback" [CBR next ; CBV count]) #;
-         Store cur next_chunk_ofs next #;
+         cur @ next_chunk_ofs #:= next #;
          Return ret
          )
   .
@@ -366,13 +366,13 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
              (chunk: var): stmt :=
     chunk #= begin #;
     (* Store chunk limit_ofs ((GetLen chunk) / entry_size) #; *)
-    Store chunk limit_ofs size #;
+    chunk @ limit_ofs #:= size #;
 
     Debug "add_chunk-calling lock" p #;
-    p #= (Call "Lock.lock" [CBV (Load p lock_ofs)]) #;
-    Store chunk next_chunk_ofs (Load p chunk_list_ofs) #;
-    Store p chunk_list_ofs chunk #;
-    (Call "Lock.unlock" [CBV (Load p lock_ofs) ; CBV p]) #;
+    p #= (Call "Lock.lock" [CBV (p #@ lock_ofs)]) #;
+    chunk @ next_chunk_ofs #:= (p #@ chunk_list_ofs) #;
+    p @ chunk_list_ofs #:= chunk #;
+    (Call "Lock.unlock" [CBV (p #@ lock_ofs) ; CBV p]) #;
     Skip
   .
   Definition initF: function. mk_function_tac init ["p"] ([]: list var). Defined.
@@ -691,9 +691,9 @@ Module TEST.
       #while ("SIGNAL" <= 1) do (Debug "waiting for SIGNAL" Vnull) #;
 
       (*** JUST FOR PRINTING -- START ***)
-      p #= (Call "Lock.lock" [CBV (Load p lock_ofs)]) #;
+      p #= (Call "Lock.lock" [CBV (p #@ lock_ofs)]) #;
       Put "(Global Mpool) Final: " p #;
-      (Call "Lock.unlock" [CBV (Load p lock_ofs) ; CBV p]) #;
+      (Call "Lock.unlock" [CBV (p #@ lock_ofs) ; CBV p]) #;
       (*** JUST FOR PRINTING -- END ***)
 
       i #= MAX #;

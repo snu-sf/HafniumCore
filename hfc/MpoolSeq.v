@@ -132,8 +132,8 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
   (* } *)
 
   Definition init (p: var): stmt :=
-    (Store p chunk_list_ofs Vnull) #;
-    (Store p fallback_ofs Vnull)
+    (p @ chunk_list_ofs #:= Vnull) #;
+    (p @ fallback_ofs   #:= Vnull)
   .
 
   (* void mpool_init_with_fallback(struct mpool *p, struct mpool *fallback) *)
@@ -144,7 +144,7 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
 
   Definition init_with_fallback (p fallback: var): stmt :=
     Call "init" [CBR p] #;
-    (Store p fallback_ofs fallback)
+    (p @ fallback_ofs #:= fallback)
   .
 
   (* void *mpool_alloc_contiguous(struct mpool *p, size_t count, size_t align) *)
@@ -175,7 +175,7 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
        then (Return ret)
        else Skip
        #;
-       p #= (Load p fallback_ofs) #;
+       p #= (p #@ fallback_ofs) #;
        #if (p)
        then Skip
        else Break
@@ -188,17 +188,17 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
              (p count: var)
              (ret next nextp: var): stmt :=
     #guarantee (CoqCode [p: expr] (fun p => mpool_wf (nth 0 p Vnull))) #;
-    next #= (Load p chunk_list_ofs) #;
+    next #= (p #@ chunk_list_ofs) #;
     ret #= (Call "alloc_contiguous_no_fallback2" [CBR next ; CBV count]) #;
-    Store p chunk_list_ofs next #;
+    p @ chunk_list_ofs #:= next #;
     #if (ret)
      then (Return ret)
      else (
-         nextp #= (Load p fallback_ofs) #;
+         nextp #= (p #@ fallback_ofs) #;
          #if (! nextp) then Return Vnull else Skip #;
          (* Put "Looking inside fallback.." Vnull #; *)
          ret #= (Call "alloc_contiguous2" [CBR nextp ; CBV count]) #;
-         (Store p fallback_ofs nextp) #;
+         (p @ fallback_ofs #:= nextp) #;
          Return ret
        )
   .
@@ -254,7 +254,7 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
              (p count: var)
              (prev ret new_chunk chunk: var): stmt :=
     #guarantee (CoqCode [p: expr] (fun p => mpool_wf (nth 0 p Vnull))) #;
-    prev #= (#& (Load p chunk_list_ofs)) #;
+    prev #= (#& (p #@ chunk_list_ofs)) #;
     Debug "(A)prev_is: " prev #;
     #while prev
      do (
@@ -262,18 +262,18 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
        new_chunk #= (SubPointerFrom chunk (count * entry_size)) #;
        (* if (new_chunk <= chunk->limit) *)
        (* #if new_chunk *)
-       #if (count <= (Load chunk limit_ofs))
+       #if (count <= (chunk #@ limit_ofs))
         then
           (
-           (Debug "If1-limit: " (Load chunk limit_ofs)) #;
-           #if count == (Load chunk limit_ofs)
+           (Debug "If1-limit: " (chunk #@ limit_ofs)) #;
+           #if count == (chunk #@ limit_ofs)
             then (
-                Store prev 0 (Load chunk next_chunk_ofs) (** should write to p **)
+                prev @ 0 #:= (chunk #@ next_chunk_ofs) (** should write to p **)
               )
             else (
-                Store new_chunk next_chunk_ofs (Load chunk next_chunk_ofs) #;
-                Store new_chunk limit_ofs (Load chunk limit_ofs) #;
-                Store prev 0 new_chunk
+                new_chunk @ next_chunk_ofs #:= (chunk #@ next_chunk_ofs) #;
+                new_chunk @ limit_ofs #:= (chunk #@ limit_ofs) #;
+                prev @ 0 #:= new_chunk
               )
            #;
            (* ret = (void * )start; *) (** code doesn't specify the size, but we need too **)
@@ -284,8 +284,8 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
           )
         else
           (
-            (Debug "Else1-limit: " (Load chunk limit_ofs)) #;
-            (prev #= #& (Load chunk next_chunk_ofs)) #;
+            (Debug "Else1-limit: " (chunk #@ limit_ofs)) #;
+            (prev #= #& (chunk #@ next_chunk_ofs)) #;
             (Debug "Else1-prev: " prev) #;
             Skip
           )
@@ -299,7 +299,7 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
              (cur count: var)
              (ret next cur_ofs new_cur: var): stmt :=
     #if ! cur then Return Vnull else Skip #;
-    cur_ofs #= (Load cur limit_ofs) #;
+    cur_ofs #= (cur #@ limit_ofs) #;
     #if (count <= cur_ofs)
      then (
            (* (Debug "If-limit: " cur_ofs) #; *)
@@ -307,14 +307,14 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
             then (
                 (* (Debug "If-If: " Vnull) #; *)
                 ret #= (SubPointerTo cur (count * entry_size)) #;
-                cur #= (Load cur next_chunk_ofs) #;
+                cur #= (cur #@ next_chunk_ofs) #;
                 Return ret
               )
             else (
                 (* (Debug "If-Else: " Vnull) #; *)
                 new_cur #= (SubPointerFrom cur (count * entry_size)) #;
-                Store new_cur next_chunk_ofs (Load cur next_chunk_ofs) #;
-                Store new_cur limit_ofs (cur_ofs - count) #;
+                new_cur @ next_chunk_ofs #:= (cur #@ next_chunk_ofs) #;
+                new_cur @ limit_ofs #:= (cur_ofs - count) #;
                 ret #= (SubPointerTo cur (count * entry_size)) #;
                 cur #= new_cur #;
                 Return ret
@@ -322,9 +322,9 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
           )
      else (
          (* (Debug "Else-limit: " cur_ofs) #; *)
-         next #= (Load cur next_chunk_ofs) #;
+         next #= (cur #@ next_chunk_ofs) #;
          ret #= (Call "alloc_contiguous_no_fallback2" [CBR next ; CBV count]) #;
-         Store cur next_chunk_ofs next #;
+         cur @ next_chunk_ofs #:= next #;
          Return ret
          )
   .
@@ -362,10 +362,10 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
              (chunk: var): stmt :=
     chunk #= begin #;
     (* Store chunk limit_ofs ((GetLen chunk) / entry_size) #; *)
-    Store chunk limit_ofs size #;
+    chunk @ limit_ofs #:= size #;
 
-    Store chunk next_chunk_ofs (Load p chunk_list_ofs) #;
-    Store p chunk_list_ofs chunk
+    chunk @ next_chunk_ofs #:= (p #@ chunk_list_ofs) #;
+    p @ chunk_list_ofs #:= chunk
   .
 
   Definition initF: function. mk_function_tac init ["p"] ([]: list var). Defined.
