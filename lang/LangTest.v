@@ -110,10 +110,10 @@ Section TMP.
   Variable a: var.
   Variable b: val.
   Check (Var a).
-  Check (Lit b).
+  Check (Val b).
   Local Open Scope expr_scope.
   Local Open Scope stmt_scope.
-  Check ((Var a) + (Lit b)).
+  Check ((Var a) + (Val b)).
 End TMP.
 
 Local Open Scope expr_scope.

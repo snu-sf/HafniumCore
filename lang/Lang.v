@@ -117,7 +117,7 @@ Coercion bool_to_val: bool >-> val.
 (** Expressions are made of variables, constant literals, and arithmetic operations. *)
 Inductive expr : Type :=
 | Var (_ : var)
-| Lit (_ : val)
+| Val (_ : val)
 | Plus  (_ _ : expr)
 | Minus (_ _ : expr)
 | Mult  (_ _ : expr)
@@ -184,11 +184,11 @@ Module LangNotations.
   (** A few notations for convenience.  *)
   Definition Expr_coerce: expr -> stmt := Expr.
   Definition Var_coerce: string -> expr := Var.
-  Definition Lit_coerce: val -> expr := Lit.
+  Definition Val_coerce: val -> expr := Val.
   Definition nat_coerce: nat -> val := Vnat.
   Coercion Expr_coerce: expr >-> stmt.
   Coercion Var_coerce: string >-> expr.
-  Coercion Lit_coerce: val >-> expr.
+  Coercion Val_coerce: val >-> expr.
   Coercion nat_coerce: nat >-> val.
 
   Bind Scope expr_scope with expr.
@@ -202,10 +202,10 @@ Module LangNotations.
   (* Notation "'NULL'" := (Vptr []) (at level 40): expr_scope. *)
 
   Notation "#true" :=
-    (Lit (Vnat 1)) (at level 50): stmt_scope.
+    (Val (Vnat 1)) (at level 50): stmt_scope.
 
   Notation "#false" :=
-    (Lit (Vnat 0)) (at level 50): stmt_scope.
+    (Val (Vnat 0)) (at level 50): stmt_scope.
 
   Notation "'!' e" :=
     (Neg e) (at level 40, e at level 50): stmt_scope.
@@ -365,7 +365,7 @@ Section Denote.
   Fixpoint denote_expr (e : expr) : itree eff val :=
     match e with
     | Var v     => triggerGetVar v
-    | Lit n     => ret n
+    | Val n     => ret n
     | Plus a b  => l <- denote_expr a ;; r <- denote_expr b ;;
                      match l, r with
                      | Vnat l, Vnat r => ret (Vnat (l + r))
@@ -597,7 +597,7 @@ Section Denote.
          if (length f.(params) =? length args)%nat
          then
            trigger PushEnv ;;
-           let new_body := fold_left (fun s i => (fst i) #:= (Lit (snd i)) #; s)
+           let new_body := fold_left (fun s i => (fst i) #:= (Val (snd i)) #; s)
                                      (* YJ: Why coercion does not work ?? *)
                                      (combine f.(params) args) f.(body) in
            '(_, retv) <- denote_stmt ctx f new_body ;;
