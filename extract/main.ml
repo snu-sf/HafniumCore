@@ -74,6 +74,38 @@ let print_val = fun v -> print_endline (string_of_val v)
 
 let string_of_vals vs = List.fold_left (fun s i -> s ^ " " ^ string_of_val i) "" vs
 
+
+
+let string_of_lock l =
+  match l with
+  | Vnat id -> string_of_int (Nat.to_int id)
+  | _ -> failwith "Mpool not well-formed0"
+
+let entry_size = 4
+
+let rec string_of_chunk_list cl =
+  match cl with
+  | Vptr(Some(O), []) -> ""
+  | Vptr(Some paddr, next :: (Vnat limit) :: others) ->
+     (if (entry_size * (Nat.to_int limit)) != Nat.to_int (length (next :: (Vnat limit) :: others))
+      then failwith "Mpool not well-formed4"
+      else ()) ;
+     "[" ^ string_of_int (Nat.to_int paddr) ^ "~" ^ string_of_int ((Nat.to_int paddr) + entry_size * (Nat.to_int limit)) ^ ") " ^
+       string_of_chunk_list next
+  | _ -> failwith "Mpool not well-formed1"
+
+let string_of_mpool p =
+  let rec foo padding p =
+    match p with
+    | Vptr(Some(O), []) -> ""
+    (* | Vptr(_, [ lock ; chunk_list ; fallback ] ) -> *)
+    | Vptr(_, lock :: chunk_list :: fallback :: _ ) ->
+       string_of_lock lock ^ " --> " ^ string_of_chunk_list chunk_list ^ "\n"
+       (* ^ padding ^ (foo (padding ^ "  ") fallback) *)
+    | _ -> failwith "Mpool not well-formed2"
+  in
+  (foo "  " p)
+
 (* let print_val =
  *   let rec go v =
  *     match v with
@@ -99,6 +131,11 @@ let handle_Event = fun e k ->
   | ESyscall ('d'::[], msg, vs) ->
      (* print_string "<DEBUG> " ; print_string (cl2s msg) ;
       * print_endline (string_of_vals vs) ; *)
+     k (Obj.magic ())
+  | ESyscall ('m'::'d'::[], msg, p::[]) ->
+     print_endline (cl2s msg) ;
+     print_endline (string_of_mpool p) ;
+     print_endline "" ;
      k (Obj.magic ())
   | ESyscall ('g'::[], _,   []) ->
      let x = read_int() in k (Obj.magic (Vnat (Nat.of_int x)))

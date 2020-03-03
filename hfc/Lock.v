@@ -247,7 +247,7 @@ Module LOCK.
     mk_ModSem
       (fun s => existsb (string_dec s) ["Lock.release" ; "Lock.acquire" ; "Lock.new"])
       (* in_dec Strings.String.string_dec s ["Lock.unlock" ; "Lock.lock" ; "Lock.init"]) *)
-      (5252, Maps.empty)
+      (0, Maps.empty)
       LockEvent
       handler
       sem

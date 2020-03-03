@@ -58,6 +58,8 @@ Set Implicit Arguments.
 
 
 
+Definition DebugMpool := Syscall "md".
+
 
 Module MPOOLCONCUR.
 
@@ -71,8 +73,7 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
   Definition next_chunk_ofs := 0.
   Definition limit_ofs := 1.
 
-  (* Definition entry_size: nat := 4. *)
-  Definition entry_size: nat := 3.
+  Definition entry_size: nat := 4.
 
   Fixpoint chunk_list_wf (chunk_list: val): bool :=
     match chunk_list with
@@ -243,14 +244,14 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
     Debug "[alloc_contiguous] unlocking" Vnull #;
     (Call "Lock.release" [CBV (p #@ lock_ofs) ; CBV p]) #;
     #if (ret)
-     then (Return ret)
+     then (DebugMpool "After alloc_contiguous: " p #; Return ret)
      else (
          nextp #= (p #@ fallback_ofs) #;
          #if (! nextp) then Return Vnull else Skip #;
          Debug "[alloc_contiguous] calling alloc_contiguous" Vnull #;
          ret #= (Call "alloc_contiguous" [CBR nextp ; CBV count]) #;
          (p @ fallback_ofs #:= nextp) #;
-         Return ret
+         DebugMpool "After alloc_contiguous: " p #; Return ret
        )
   .
 
@@ -372,6 +373,7 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
     p #= (Call "Lock.acquire" [CBV (p #@ lock_ofs)]) #;
     chunk @ next_chunk_ofs #:= (p #@ chunk_list_ofs) #;
     p @ chunk_list_ofs #:= chunk #;
+    DebugMpool "After add_chunk: " p #;
     (Call "Lock.release" [CBV (p #@ lock_ofs) ; CBV p]) #;
     Skip
   .
@@ -680,19 +682,18 @@ Module TEST.
 
     Definition main (p i r: var): stmt := Eval compute in INSERT_YIELD (
       p #= Vptr None [0: val ; 0: val ; 0: val ] #;
-      Debug "calling init" Vnull #;
+      (* DebugMpool "calling init" p #; *)
       Call "init" [CBR p] #;
-      Debug "init done, calling add_chunk" p #;
+      DebugMpool "(Global Mpool) After initialize" p #;
       Call "add_chunk" [CBR p ; CBV (big_chunk pte_paddr_begin MAX) ; CBV MAX] #;
-      Debug "add_chunk done" p #;
-      Put "(Global Mpool) Initial: " p #;
+      (* DebugMpool "(Global Mpool) After add_chunk" p #; *)
       "GMPOOL" #= p #;
-      Debug "gvar assign done" p #;
+      (* DebugMpool "gvar assign done" p #; *)
       #while ("SIGNAL" <= 1) do (Debug "waiting for SIGNAL" Vnull) #;
 
       (*** JUST FOR PRINTING -- START ***)
       p #= (Call "Lock.acquire" [CBV (p #@ lock_ofs)]) #;
-      Put "(Global Mpool) Final: " p #;
+      DebugMpool "(Global Mpool) Final: " p #;
       (Call "Lock.release" [CBV (p #@ lock_ofs) ; CBV p]) #;
       (*** JUST FOR PRINTING -- END ***)
 
@@ -710,32 +711,36 @@ Module TEST.
     Definition alloc_and_free (sz: nat)
                (p i r0 r1 r2: var): stmt := Eval compute in INSERT_YIELD (
       #while (! "GMPOOL") do (Debug "waiting for GMPOOL" Vnull) #;
-      Debug "ALLOC_AND_FREE START" Vnull #;
+      (* DebugMpool "ALLOC_AND_FREE START" Vnull #; *)
       i #= MAX #;
       p #= Vptr None [0: val ; 0: val ; 0: val ] #;
-      Debug "init-with-fallback start" Vnull #;
+      (* DebugMpool "init-with-fallback start" Vnull #; *)
       Call "init_with_fallback" [CBR p ; CBV "GMPOOL"] #;
-      Debug "init-with-fallback done" Vnull #;
-      #while i
-      do (
+      DebugMpool "(Local Mpool) After init-with-fallback" p #;
+      (* #while i *)
+      (* do ( *)
         Debug "looping, i is: " i #;
         i #= i - 1 #;
-        Debug "calling alloc_contiguous" Vnull #;
         r0 #= Call "alloc_contiguous" [CBR p ; CBV sz] #;
+        (* DebugMpool "(Local Mpool) After alloc_contiguous" p #; *)
         r1 #= Call "alloc_contiguous" [CBR p ; CBV sz] #;
+        (* DebugMpool "(Local Mpool) After alloc_contiguous" p #; *)
         r2 #= Call "alloc_contiguous" [CBR p ; CBV sz] #;
+        (* DebugMpool "(Local Mpool) After alloc_contiguous" p #; *)
         #assume r0 #;
         #assume r1 #;
         #assume r2 #;
-        Debug "calling add_chunk" Vnull #;
         Call "add_chunk" [CBR p ; CBV r0 ; CBV sz] #;
+        (* DebugMpool "(Local Mpool) After add_chunk" p #; *)
         Call "add_chunk" [CBR p ; CBV r1 ; CBV sz] #;
+        (* DebugMpool "(Local Mpool) After add_chunk" p #; *)
         Call "add_chunk" [CBR p ; CBV r2 ; CBV sz] #;
+        (* DebugMpool "(Local Mpool) After add_chunk" p #; *)
         Skip
-      ) #;
-      Put "(Local Mpool) Consume done: " p #;
-      Debug "calling fini" p #;
+      (* ) #; *)
+      #;
       Call "fini" [CBR p] #;
+      DebugMpool "(Local Mpool) After calling fini" p #;
       "SIGNAL" #= "SIGNAL" + 1 #;
       Skip
     )
