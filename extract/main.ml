@@ -235,6 +235,8 @@ let main =
   end;
 
   print_endline "-----------------------------------------------------------" ;
+  run (MultiModuleMultiCoreLocalState.isem) ;
+  print_endline "-----------------------------------------------------------" ;
   run (MpoolConcur.TEST.TEST4.isem) ;
 
   ()

@@ -758,3 +758,66 @@ Module MultiModuleMultiCore.
 
 End MultiModuleMultiCore.
 
+
+Module MultiModuleMultiCoreLocalState.
+
+  Inductive memoizeE: Type -> Type :=
+  | GetM: memoizeE (val)
+  | SetM (v: val): memoizeE unit
+  .
+  Definition f_sem: CallExternalE ~> itree (CallExternalE +' memoizeE +' GlobalE +' Event) :=
+    (fun _ '(CallExternal func_name args) =>
+       match args with
+       | [Vnat v] => trigger EYield ;; trigger (SetM v) ;; Ret (Vnull, [])
+       | _ => trigger EYield ;; v <-  trigger (GetM) ;; Ret (v, [])
+       end)
+  .
+
+  Definition f_owned_heap: Type := val.
+
+  Definition f_handler: memoizeE ~> stateT f_owned_heap (itree (GlobalE +' Event)) :=
+    fun T e oh =>
+      match e with
+      | GetM => Ret (oh, oh)
+      | SetM v => Ret (v, tt)
+      end
+  .
+  Definition f_ModSem: ModSem :=
+    mk_ModSem
+      (fun s => string_dec s "f")
+      Vnull
+      memoizeE
+      f_handler
+      f_sem
+  .
+
+  Definition setter: stmt :=
+    (Call "f" [CBV 10]) #;
+    "SIGNAL" #:= 1 #;
+    Skip
+  .
+
+  Definition getter: stmt :=
+    #while "SIGNAL" == 0 do Yield #;
+    #if (Call "f" []) == 10 then Skip else Assume #;
+    Skip
+  .
+
+  Definition setterF: function.
+    mk_function_tac setter ([]:list var) ([]:list var). Defined.
+  Definition setterP: program := [("setter", setterF)].
+
+  Definition getterF: function.
+    mk_function_tac getter ([]:list var) ([]:list var). Defined.
+  Definition getterP: program := [("getter", getterF)].
+
+  Definition modsems: list ModSem :=
+    (List.map program_to_ModSem [setterP ; getterP]) ++ [f_ModSem]
+  .
+
+  Definition isem: itree Event unit :=
+    eval_multimodule_multicore modsems ["setter" ; "getter"].
+
+End MultiModuleMultiCoreLocalState.
+
+
