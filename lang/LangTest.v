@@ -57,92 +57,6 @@ Set Implicit Arguments.
 
 
 
-Section RUN.
-Variable shuffle: forall A, list A -> list A.
-
-(* Definition rr_match {E R} `{Event -< E} *)
-(*            (rr : list (itree E R) -> itree E R) *)
-(*            (q:list (itree E R)) : itree E R *)
-(*   := *)
-(*     match q with *)
-(*     | [] => triggerUB *)
-(*     | t::ts => *)
-(*       match observe t with *)
-(*       | RetF _ => Tau (rr ts) *)
-(*       | TauF u => Tau (rr (u :: ts)) *)
-(*       | @VisF _ _ _ X o k => Vis o (fun x => rr (shuffle (k x :: ts))) *)
-(*       end *)
-(*     end. *)
-
-(* CoFixpoint round_robin {E R} `{Event -< e} (q:list (itree E R)) : itree E R := *)
-(*   rr_match round_robin q. *)
-Definition rr_match {E R}
-           (rr : list (itree (E +' Event) R) -> itree (E +' Event) unit)
-           (q:list (itree (E +' Event) R)) : itree (E +' Event) unit
-  :=
-    match q with
-    | [] => Ret tt
-    | t::ts =>
-      match observe t with
-      | RetF _ => Tau (rr ts)
-      | TauF u => Tau (rr (u :: ts))
-      | @VisF _ _ _ X o k =>
-        match o with
-        | inr1 EYield => Vis o (fun x => rr (shuffle (k x :: ts)))
-        | _ => Vis o (fun x => rr (k x :: ts))
-        end
-      end
-    end.
-
-CoFixpoint round_robin {E R} (q:list (itree (E +' Event) R)) : itree (E +' Event) unit :=
-  rr_match round_robin q.
-
-
-
-
-Variable handle_Event: forall E R X, Event X -> (X -> itree E R) -> itree E R.
-(* Extract Constant handle_Event => "handle_Event". *)
-
-Definition run_till_yield_aux {R} (rr : itree Event R -> (itree Event R))
-           (q: itree Event R) : (itree Event R)
-  :=
-    match observe q with
-    | RetF _ => q
-    | TauF u => Tau (rr u)
-      (* w <- (rr u) ;; (Tau w) *)
-    | @VisF _ _ _ X o k =>
-      (match o in Event Y return X = Y -> itree Event R with
-       | EYield => fun pf => k (eq_rect_r (fun T => T) tt pf)
-       | _ => (* fun _ => Vis o (fun x => rr (k x)) *)
-         fun _ => Tau (rr (handle_Event o k))
-       end) eq_refl
-      (* match o with *)
-      (* | EYield => Vis o (fun x => rr (k x)) *)
-      (* | _ => Vis o (fun x => rr (k x)) *)
-      (* end *)
-    (* Vis o (fun x => rr (shuffle (ts ++ [k x]))) *)
-    end.
-
-CoFixpoint run_till_yield {R} (q: itree Event R): (itree Event R) :=
-  run_till_yield_aux run_till_yield q
-.
-
-Definition is_ret {E R} (q: itree E R): bool := match observe q with RetF _ => true | _ => false end.
-
-Definition my_rr_match {R} (rr : list (itree Event R) -> list (itree Event R))
-           (q:list (itree Event R)) : list (itree Event R)
-  :=
-    match q with
-    | [] => []
-    | t::ts =>
-      let t2 := run_till_yield t in
-      rr (shuffle (List.filter (negb <*> is_ret) (t2::ts)))
-    end.
-
-Fail CoFixpoint my_round_robin {R} (q:list (itree Event R)) : list (itree Event R) :=
-  my_rr_match my_round_robin q.
-
-End RUN.
 
 
 
@@ -477,9 +391,9 @@ Module MultiCore2.
   (* Definition programs: list Lang.program := [ observerP ; adderP ; adderP ; mainP ]. *)
   Definition programs: list Lang.program := [ observerP ; adderP ; adderP ].
 
-  Definition sem shuffle :=
+  Definition sem :=
    ITree.ignore
-     (interp_GlobalE (round_robin shuffle (List.map eval_single_program programs)) []).
+     (interp_GlobalE (round_robin (List.map eval_single_program programs)) []).
 
 End MultiCore2.
 
@@ -529,9 +443,9 @@ Module MultiCoreMPSC.
 
   Definition programs: list Lang.program := [ producerP ; consumerP ; producerP ].
 
-  Definition sem shuffle :=
+  Definition sem :=
    ITree.ignore
-     (interp_GlobalE (round_robin shuffle (List.map eval_single_program programs)) []).
+     (interp_GlobalE (round_robin (List.map eval_single_program programs)) []).
 
 End MultiCoreMPSC.
 

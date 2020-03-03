@@ -67,9 +67,9 @@ Separate Extraction
          MpoolConcur.TEST.TEST3.isem1
          MpoolConcur.TEST.TEST3.isem2
 
-         LangTest.round_robin
-         LangTest.run_till_yield
-         LangTest.my_rr_match
+         Lang.round_robin
+         Lang.run_till_yield
+         Lang.my_rr_match
 
 ITreeDefinition.observe
 .

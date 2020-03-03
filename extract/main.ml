@@ -50,10 +50,10 @@ module Nat = struct
   let rec of_int n = assert(n >= 0); if(n == 0) then O else S (of_int (pred n))
 end
 
-let shuffle: 'a list -> 'a list = fun xs ->
-  let xis = List.map (fun x -> (Random.bits (), x)) xs in
-  let yis = List.sort (fun x0 x1 -> Stdlib.compare (fst x0) (fst x1)) xis in
-  List.map snd yis
+(* let shuffle: 'a list -> 'a list = fun xs ->
+ *   let xis = List.map (fun x -> (Random.bits (), x)) xs in
+ *   let yis = List.sort (fun x0 x1 -> Stdlib.compare (fst x0) (fst x1)) xis in
+ *   List.map snd yis *)
 
 let cl2s = fun cl -> String.concat "" (List.map (String.make 1) cl)
 
@@ -157,7 +157,7 @@ let rec run t =
 
 
 let rec my_rr q =
-  (my_rr_match (fun _ -> shuffle) (fun _ _ _ -> handle_Event)
+  (my_rr_match (fun _ _ _ -> handle_Event)
      (fun q -> match q with
                | [] -> []
                | _ :: _ -> my_rr q)) q
@@ -193,9 +193,9 @@ let main =
   (* print_endline "-----------------------------------------------------------" ;
    * run (round_robin (fun _ -> shuffle) (List.map eval_program MultiCore.programs)) ; *)
   print_endline "-----------------------------------------------------------" ;
-  run (MultiCore2.sem (fun _ -> shuffle)) ;
+  run (MultiCore2.sem) ;
   print_endline "-----------------------------------------------------------" ;
-  run (MultiCoreMPSC.sem (fun _ -> shuffle)) ;
+  run (MultiCoreMPSC.sem) ;
 
   print_endline "-----------------------------------------------------------" ;
   run (eval_whole_program DoubleReturn.program) ;
