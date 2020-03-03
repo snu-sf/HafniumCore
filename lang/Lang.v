@@ -1098,7 +1098,7 @@ Section CONCURRENCY.
 
 End CONCURRENCY.
 
-Definition eval_multimodule_multicore (mss: list ModSem) (entries: list var)
+Definition eval_multimodule_multicore_REMOVETHIS(mss: list ModSem) (entries: list var)
   : itree Event unit :=
   let ts: list (itree (GlobalE +' Event) _) :=
       List.map
@@ -1115,6 +1115,40 @@ Definition eval_multimodule_multicore (mss: list ModSem) (entries: list var)
   t
 .
 
+Definition assoc_l {A B C}: itree (A +' B +' C) ~> itree ((A +' B) +' C) :=
+  interp (fun _ (e: (A +' B +' C) _) =>
+            match e with
+            | inl1 a => trigger (inl1 (inl1 a))
+            | inr1 (inl1 b) => trigger (inr1 (inl1 b))
+            | inr1 (inr1 c) => trigger (inr1 c)
+            end)
+.
+(* Arguments assoc_l [A B C]. *)
+
+Definition assoc_r {A B C}: itree ((A +' B) +' C) ~> itree (A +' B +' C) :=
+  interp (fun _ (e: ((A +' B) +' C) _) =>
+            match e with
+            | (inl1 (inl1 a)) => trigger (inl1 a)
+            | (inl1 (inr1 b)) => trigger (inr1 (inl1 b))
+            | (inr1 c) => trigger (inr1 (inr1 c))
+            end)
+.
+
+(*** YJ: TODO: can we add coercion? ***)
+
+Definition eval_multimodule_multicore (mss: list ModSem) (entries: list var)
+  : itree Event unit :=
+  let ts: list (itree (sum_all1 (List.map customE mss) +' GlobalE +' Event) _) :=
+      List.map (eval_multimodule_aux mss) entries in
+  let t: itree (sum_all1 (List.map customE mss) +' GlobalE +' Event) _ :=
+      assoc_r (round_robin (List.map (fun t => assoc_l t) ts)) in
+  (*** TODO: I want to write it in point-free style ***)
+  let t: itree (GlobalE +' Event) _ :=
+      State.interp_state (case_ (HANDLE2 mss) State.pure_state) t (INITIAL2 mss) in
+  let t: itree Event _ := interp_GlobalE t [] in
+  let t: itree Event unit := ITree.ignore t in
+  t
+.
 
 
 
