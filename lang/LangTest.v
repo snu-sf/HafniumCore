@@ -91,21 +91,6 @@ Definition rr_match {E R}
         | inr1 EYield => Vis o (fun x => rr (shuffle (k x :: ts)))
         | _ => Vis o (fun x => rr (k x :: ts))
         end
-        (* match o with *)
-        (* | inl1 e => Vis o (fun x => rr (ts ++ [k x])) *)
-        (* | inr1 e => *)
-        (*   match e with *)
-        (*   | EYield => Vis o (fun x => rr (shuffle (k x :: ts))) *)
-        (*   | _ => Vis o (fun x => rr (k x :: ts)) *)
-        (*   end *)
-        (* end *)
-
-        (* match o with *)
-        (* | Vis o (fun x => rr (shuffle (k x :: ts))) *)
-        (* (match o in Event Y return X = Y -> itree Event unit with *)
-        (* | EYield => fun pf => rr (k (eq_rect_r (fun T => T) tt pf) :: ts) *)
-        (* | _ => fun _ => Vis o (fun x => rr (k x :: ts)) *)
-        (* end) eq_refl *)
       end
     end.
 
@@ -477,19 +462,20 @@ Module MultiCore2.
     )
   .
 
-  Definition main: stmt :=
-    "GVAR" #:= 10 #; Yield
-  .
+  (* Definition main: stmt := *)
+  (*   "GVAR" #:= 10 #; Yield *)
+  (* . *)
 
   Definition observerF: function. mk_function_tac observer ([]: list var) (["i"]). Defined.
   Definition adderF: function. mk_function_tac adder ([]: list var) (["i"]). Defined.
-  Definition mainF: function. mk_function_tac main ([]: list var) ([]: list var). Defined.
+  (* Definition mainF: function. mk_function_tac main ([]: list var) ([]: list var). Defined. *)
 
   Definition observerP: program := [("main", observerF) ].
   Definition adderP: program := [("main", adderF) ].
-  Definition mainP: program := [("main", mainF) ].
+  (* Definition mainP: program := [("main", mainF) ]. *)
 
-  Definition programs: list Lang.program := [ observerP ; adderP ; adderP ; mainP ].
+  (* Definition programs: list Lang.program := [ observerP ; adderP ; adderP ; mainP ]. *)
+  Definition programs: list Lang.program := [ observerP ; adderP ; adderP ].
 
   Definition sem shuffle :=
    ITree.ignore
@@ -497,6 +483,57 @@ Module MultiCore2.
 
 End MultiCore2.
 
+
+
+
+
+
+Module MultiCore3.
+
+  Definition producer i: stmt :=
+    i #:= 10 #;
+    #while i
+    do (
+      Debug "PRODUCER: " i #;
+      #if "GVAR" == 0
+       then ("GVAR" #:= i #; i #:= i-1)
+       else Skip #;
+      Yield
+    ) #;
+    "SIGNAL" #:= "SIGNAL" + 1
+  .
+
+  Definition consumer s: stmt :=
+    s #:= 0 #;
+    #while true
+    do (
+      Debug "CONSUMER: " s #;
+      #if "GVAR" == 0
+       then Skip
+       else s #:= s + "GVAR" #;
+            "GVAR" #:= 0
+      #;
+      #if "SIGNAL" == 2 then Break else Skip #;
+      Yield
+    ) #;
+    (* #put s #; *)
+    #if s == 110 then Skip else Assume #;
+    Put "Test(MultiCore3) passed" Vnull
+  .
+
+  Definition producerF: function. mk_function_tac producer ([]: list var) (["i"]). Defined.
+  Definition consumerF: function. mk_function_tac consumer ([]: list var) (["s"]). Defined.
+
+  Definition producerP: program := [("main", producerF) ].
+  Definition consumerP: program := [("main", consumerF) ].
+
+  Definition programs: list Lang.program := [ producerP ; consumerP ; producerP ].
+
+  Definition sem shuffle :=
+   ITree.ignore
+     (interp_GlobalE (round_robin shuffle (List.map eval_single_program programs)) []).
+
+End MultiCore3.
 
 
 

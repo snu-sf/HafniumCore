@@ -194,6 +194,8 @@ let main =
    * run (round_robin (fun _ -> shuffle) (List.map eval_program MultiCore.programs)) ; *)
   print_endline "-----------------------------------------------------------" ;
   run (MultiCore2.sem (fun _ -> shuffle)) ;
+  print_endline "-----------------------------------------------------------" ;
+  run (MultiCore3.sem (fun _ -> shuffle)) ;
 
   print_endline "-----------------------------------------------------------" ;
   run (eval_whole_program DoubleReturn.program) ;
