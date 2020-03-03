@@ -488,7 +488,7 @@ End MultiCore2.
 
 
 
-Module MultiCore3.
+Module MultiCoreMPSC.
 
   Definition producer i: stmt :=
     i #:= 10 #;
@@ -533,7 +533,7 @@ Module MultiCore3.
    ITree.ignore
      (interp_GlobalE (round_robin shuffle (List.map eval_single_program programs)) []).
 
-End MultiCore3.
+End MultiCoreMPSC.
 
 
 

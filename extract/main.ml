@@ -195,7 +195,7 @@ let main =
   print_endline "-----------------------------------------------------------" ;
   run (MultiCore2.sem (fun _ -> shuffle)) ;
   print_endline "-----------------------------------------------------------" ;
-  run (MultiCore3.sem (fun _ -> shuffle)) ;
+  run (MultiCoreMPSC.sem (fun _ -> shuffle)) ;
 
   print_endline "-----------------------------------------------------------" ;
   run (eval_whole_program DoubleReturn.program) ;
