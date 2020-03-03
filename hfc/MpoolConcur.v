@@ -59,6 +59,14 @@ Set Implicit Arguments.
 
 
 
+(****** TODO: move to Lang *****)
+Fixpoint insert_yield (s: stmt): stmt :=
+  match s with
+  | Seq s0 s1 => Seq (insert_yield s0) (insert_yield s1)
+  | _ => Yield #; s
+  end
+.
+
 
 Module MPOOLCONCUR.
 

@@ -136,6 +136,7 @@ Module LOCK.
                                   | inl _ => trigger EYield ;; Ret (inl tt)
                                   | inr v => Ret (inr v)
                                   end) tt) ;;
+
             triggerSyscall "d" "lock-lock   ---> " [Vnat id ; v] ;;
             Ret (v, [])
             (* v <- trigger (TryLockE id) ;; *)
