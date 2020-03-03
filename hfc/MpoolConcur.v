@@ -678,8 +678,7 @@ Module TEST.
     Definition MAX: nat := 20.
     Definition pte_paddr_begin: nat := 4000.
 
-    Definition main (p i r: var): stmt :=
-    Eval compute in INSERT_YIELD (
+    Definition main (p i r: var): stmt := Eval compute in INSERT_YIELD (
       p #:= Vptr None [0: val ; 0: val ; 0: val ] #;
       Debug "calling init" Vnull #;
       Call "init" [CBR p] #;
@@ -710,8 +709,7 @@ Module TEST.
     .
 
     Definition alloc_and_free (sz: nat)
-               (p i r0 r1 r2: var): stmt :=
-    Eval compute in INSERT_YIELD (
+               (p i r0 r1 r2: var): stmt := Eval compute in INSERT_YIELD (
       (* #while (! "GMPOOL") do (Debug "waiting for GMPOOL" Vnull #; Yield) #; *)
       (* Debug "ALLOC_AND_FREE START" Vnull #; *)
       (* Yield #;   i #:= MAX #; *)
