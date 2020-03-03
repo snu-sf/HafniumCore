@@ -667,6 +667,8 @@ Module TEST.
   Fixpoint INSERT_YIELD (s: stmt): stmt :=
     match s with
     | Seq s0 s1 => Seq (INSERT_YIELD s0) (INSERT_YIELD s1)
+    | If c s0 s1 => If c (INSERT_YIELD s0) (INSERT_YIELD s1)
+    | While c s => While c (INSERT_YIELD s)
     | _ => Yield #; s
     end
   .
