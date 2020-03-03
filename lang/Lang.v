@@ -117,7 +117,7 @@ Coercion bool_to_val: bool >-> val.
 (** Expressions are made of variables, constant literals, and arithmetic operations. *)
 Inductive expr : Type :=
 | Var (_ : var)
-| Lit (_ : val)
+| Val (_ : val)
 | Plus  (_ _ : expr)
 | Minus (_ _ : expr)
 | Mult  (_ _ : expr)
@@ -159,8 +159,8 @@ Inductive stmt : Type :=
 | If     (i : expr) (t e : stmt) (* if (i) then { t } else { e } *)
 | While  (t : expr) (b : stmt)   (* while (t) { b } *)
 | Skip                           (* ; *)
-| Assume
-| Guarantee
+| AssumeFail
+| GuaranteeFail
 | Store (x: var) (ofs: expr) (e: expr) (* x->ofs := e *)
 (* YJ: I used "var" instead of "var + val". We should "update" retvs into variables. *)
 | Expr (e: expr)
@@ -185,11 +185,11 @@ Module LangNotations.
   (** A few notations for convenience.  *)
   Definition Expr_coerce: expr -> stmt := Expr.
   Definition Var_coerce: string -> expr := Var.
-  Definition Lit_coerce: val -> expr := Lit.
+  Definition Val_coerce: val -> expr := Val.
   Definition nat_coerce: nat -> val := Vnat.
   Coercion Expr_coerce: expr >-> stmt.
   Coercion Var_coerce: string >-> expr.
-  Coercion Lit_coerce: val >-> expr.
+  Coercion Val_coerce: val >-> expr.
   Coercion nat_coerce: nat >-> val.
 
   Bind Scope expr_scope with expr.
@@ -202,6 +202,12 @@ Module LangNotations.
   Infix "==" := Equal : expr_scope.
   Infix "<=" := LE : expr_scope.
   (* Notation "'NULL'" := (Vptr []) (at level 40): expr_scope. *)
+
+  Notation "#true" :=
+    (Val (Vnat 1)) (at level 50): stmt_scope.
+
+  Notation "#false" :=
+    (Val (Vnat 0)) (at level 50): stmt_scope.
 
   Notation "'!' e" :=
     (Neg e) (at level 40, e at level 50): stmt_scope.
@@ -231,6 +237,12 @@ Module LangNotations.
        right associativity,
        format
          "'[v  ' '#while'  t  'do' '/' '[v' b  ']' ']'").
+
+  Notation "#assume e" :=
+    (#if e then Skip else AssumeFail) (at level 60, e at level 50): stmt_scope.
+
+  Notation "#guarantee e" :=
+    (#if e then Skip else GuaranteeFail) (at level 60, e at level 50): stmt_scope.
 
   (* Notation "x '#->' ofs '#:=' e" := *)
   (*   (Store x ofs e) (at level 60, e at level 50): stmt_scope. *)
@@ -355,7 +367,7 @@ Section Denote.
   Fixpoint denote_expr (e : expr) : itree eff val :=
     match e with
     | Var v     => triggerGetVar v
-    | Lit n     => ret n
+    | Val n     => ret n
     | Plus a b  => l <- denote_expr a ;; r <- denote_expr b ;;
                      match l, r with
                      | Vnat l, Vnat r => ret (Vnat (l + r))
@@ -548,8 +560,8 @@ Section Denote.
                       end
                 else ret (inr (CNormal, Vnodef (* YJ: this is temporary *)))))
     | Skip => ret (CNormal, Vnodef)
-    | Assume => triggerUB "stmt-assume"
-    | Guarantee => triggerNB "stmt-grnt"
+    | AssumeFail => triggerUB "stmt-assume"
+    | GuaranteeFail => triggerNB "stmt-grnt"
     | Store x ofs e => ofs <- denote_expr ofs ;; e <- denote_expr e ;;
                            v <- triggerGetVar x ;;
                            match ofs, v with
@@ -592,7 +604,7 @@ Section Denote.
          if (length f.(params) =? length args)%nat
          then
            trigger PushEnv ;;
-           let new_body := fold_left (fun s i => (fst i) #:= (Lit (snd i)) #; s)
+           let new_body := fold_left (fun s i => (fst i) #:= (Val (snd i)) #; s)
                                      (* YJ: Why coercion does not work ?? *)
                                      (combine f.(params) args) f.(body) in
            '(_, retv) <- denote_stmt ctx f new_body ;;

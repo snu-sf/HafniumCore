@@ -99,10 +99,10 @@ Section TMP.
   Variable a: var.
   Variable b: val.
   Check (Var a).
-  Check (Lit b).
+  Check (Val b).
   Local Open Scope expr_scope.
   Local Open Scope stmt_scope.
-  Check ((Var a) + (Lit b)).
+  Check ((Var a) + (Val b)).
 End TMP.
 
 Local Open Scope expr_scope.
@@ -281,10 +281,10 @@ Module Control.
   Definition f_function: function. mk_function_tac f ["ctrl"] ["local0" ; "local1"]. Defined.
 
   Definition main r: stmt :=
-    r #:= (Call "f" [CBV 0]) #; #if r == 0 then Skip else Assume #;
-    r #:= (Call "f" [CBV 1]) #; #if r == 10 then Skip else Assume #;
-    r #:= (Call "f" [CBV 2]) #; #if r == 111 then Skip else Assume #;
-    r #:= (Call "f" [CBV 3]) #; #if r == 10110 then Skip else Assume #;
+    r #:= (Call "f" [CBV 0]) #; #assume (r == 0) #;
+    r #:= (Call "f" [CBV 1]) #; #assume (r == 10) #;
+    r #:= (Call "f" [CBV 2]) #; #assume (r == 111) #;
+    r #:= (Call "f" [CBV 3]) #; #assume (r == 10110) #;
     Skip
   .
 
@@ -308,7 +308,7 @@ Module DoubleReturn.
 
   Definition main r :=
     r #:= (Call "f" []) #;
-    #if ! (r == 0) then Assume else Skip #;
+    #assume (r == 0) #;
     Skip
   .
 
@@ -356,12 +356,10 @@ Module MultiCore2.
     #while i
     do (
       i #:= i -1 #;
-      #if "GVAR" % 2 == 0
-       then Skip
-       else Assume #;
+      #assume ("GVAR" % 2 == 0) #;
       Yield
     ) #;
-    #if "GVAR" == 0 then Assume else Skip #; (* Test if GlobalE actually worked *)
+    #if "GVAR" == 0 then AssumeFail else Skip #; (* Test if GlobalE actually worked *)
     Put "Test(MultiCore2) passed" Vnull
   .
 
@@ -431,7 +429,7 @@ Module MultiCoreMPSC.
       Yield
     ) #;
     (* #put s #; *)
-    #if s == 110 then Skip else Assume #;
+    #assume (s == 110) #;
     Put "Test(MultiCore3) passed" Vnull
   .
 
@@ -506,8 +504,8 @@ Module MultiModuleGenv.
 
   Definition main: stmt :=
     (Call "f" []) #;
-    #if (Call "g" []) == 1000 then Skip else Assume #;
-    #if (Call "f" []) == 2000 then Skip else Assume #;
+    #assume ((Call "g" []) == 1000) #;
+    #assume ((Call "f" []) == 2000) #;
     Put "Test(MultiModuleGenv) passed" Vnull
   .
 
@@ -679,16 +677,16 @@ Module MultiModuleLocalStateSimple.
       (Call "f" [CBV 10]) #;
       (Call "g" []) #;
       Yield #; r #:= (Call "f" []) #;
-      #if r == 10 then Skip else Assume #;
+      #assume (r == 10) #;
       Debug "passed 1" Vnull #;
       (Call "g" []) #;
       Yield #; r #:= (Call "f" []) #;
-      #if r == 10 then Skip else Assume #;
+      #assume (r == 10) #;
       Debug "passed 2" Vnull #;
       Yield #; (Call "f" [CBV 20]) #;
       (Call "g" []) #;
       Yield #; r #:= (Call "f" []) #;
-      #if r == 20 then Skip else Assume #;
+      #assume (r == 20) #;
       Debug "passed 3" Vnull #;
       Put "Test(MultiModuleLocalStateSimple) passed" Vnull #;
       Skip
@@ -740,7 +738,7 @@ Module MultiModuleMultiCore.
       Yield
     ) #;
     (* #put s #; *)
-    #if s == 110 then Skip else Assume #;
+    #assume (s == 110) #;
     Put "Test(MultiCore3) passed" Vnull
   .
 
@@ -799,7 +797,7 @@ Module MultiModuleMultiCoreLocalState.
 
   Definition getter: stmt :=
     #while "SIGNAL" == 0 do Yield #;
-    #if (Call "f" []) == 10 then Skip else Assume #;
+    #assume ((Call "f" []) == 10) #;
     Skip
   .
 

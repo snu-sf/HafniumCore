@@ -193,7 +193,7 @@ let main =
   (* print_endline "-----------------------------------------------------------" ;
    * run (round_robin (fun _ -> shuffle) (List.map eval_program MultiCore.programs)) ; *)
 
-  if false
+  if true
   then begin
 
   print_endline "-----------------------------------------------------------" ;
@@ -232,10 +232,11 @@ let main =
   run (MpoolConcur.TEST.TEST3.isem1) ;
   run (MpoolConcur.TEST.TEST3.isem2) ;
 
-  end;
-
   print_endline "-----------------------------------------------------------" ;
   run (MultiModuleMultiCoreLocalState.isem) ;
+
+  end;
+
   print_endline "-----------------------------------------------------------" ;
   run (MpoolConcur.TEST.TEST4.isem) ;
 
