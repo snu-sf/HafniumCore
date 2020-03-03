@@ -59,15 +59,6 @@ Set Implicit Arguments.
 
 
 
-(****** TODO: move to Lang *****)
-Fixpoint insert_yield (s: stmt): stmt :=
-  match s with
-  | Seq s0 s1 => Seq (insert_yield s0) (insert_yield s1)
-  | _ => Yield #; s
-  end
-.
-
-
 Module MPOOLCONCUR.
 
   (*
@@ -671,12 +662,22 @@ Module TEST.
   End TEST3.
 
 
+
+  (****** TODO: move to Lang *****)
+  Fixpoint INSERT_YIELD (s: stmt): stmt :=
+    match s with
+    | Seq s0 s1 => Seq (INSERT_YIELD s0) (INSERT_YIELD s1)
+    | _ => Yield #; s
+    end
+  .
+
   Module TEST4.
 
     Definition MAX: nat := 20.
     Definition pte_paddr_begin: nat := 4000.
 
     Definition main (p i r: var): stmt :=
+    Eval compute in INSERT_YIELD (
       p #:= Vptr None [0: val ; 0: val ; 0: val ] #;
       Debug "calling init" Vnull #;
       Call "init" [CBR p] #;
@@ -686,7 +687,8 @@ Module TEST.
       Put "(Global Mpool) Initial: " p #;
       "GMPOOL" #:= p #;
       Debug "gvar assign done" p #;
-      #while ("SIGNAL" <= 1) do (Debug "waiting for SIGNAL" Vnull #; Yield) #;
+      (* #while ("SIGNAL" <= 1) do (Debug "waiting for SIGNAL" Vnull #; Yield) #; *)
+      #while ("SIGNAL" <= 1) do (Debug "waiting for SIGNAL" Vnull) #;
 
       (*** JUST FOR PRINTING -- START ***)
       p #:= (Call "Lock.lock" [CBV (Load p lock_ofs)]) #;
@@ -702,32 +704,63 @@ Module TEST.
         #assume r
       ) #;
       Put "Test4 Passed" Vnull
+    )
     .
 
     Definition alloc_and_free (sz: nat)
                (p i r0 r1 r2: var): stmt :=
-      #while (! "GMPOOL") do (Debug "waiting for GMPOOL" Vnull #; Yield) #;
+    Eval compute in INSERT_YIELD (
+      (* #while (! "GMPOOL") do (Debug "waiting for GMPOOL" Vnull #; Yield) #; *)
+      (* Debug "ALLOC_AND_FREE START" Vnull #; *)
+      (* Yield #;   i #:= MAX #; *)
+      (* Yield #;   p #:= Vptr None [0: val ; 0: val ; 0: val ] #; *)
+      (* Debug "init-with-fallback start" Vnull #; *)
+      (* Yield #;   Call "init_with_fallback" [CBR p ; CBV "GMPOOL"] #; *)
+      (* Debug "init-with-fallback done" Vnull #; *)
+      (* #while i *)
+      (* do ( *)
+      (*   Debug "looping, i is: " i #; *)
+      (*   Yield #;   i #:= i - 1 #; *)
+      (*   Debug "calling alloc_contiguous" Vnull #; *)
+      (*   Yield #;   r0 #:= Call "alloc_contiguous" [CBR p ; CBV sz] #; *)
+      (*   Yield #;   r1 #:= Call "alloc_contiguous" [CBR p ; CBV sz] #; *)
+      (*   Yield #;   r2 #:= Call "alloc_contiguous" [CBR p ; CBV sz] #; *)
+      (*   Yield #;   #assume r0 #; *)
+      (*   Yield #;   #assume r1 #; *)
+      (*   Yield #;   #assume r2 #; *)
+      (*   Debug "calling add_chunk" Vnull #; *)
+      (*   Yield #;   Call "add_chunk" [CBR p ; CBV r0 ; CBV sz] #; *)
+      (*   Yield #;   Call "add_chunk" [CBR p ; CBV r1 ; CBV sz] #; *)
+      (*   Yield #;   Call "add_chunk" [CBR p ; CBV r2 ; CBV sz] #; *)
+      (*   Skip *)
+      (* ) #; *)
+      (* Put "(Local Mpool) Consume done: " p #; *)
+      (* Debug "calling fini" p #; *)
+      (* Call "fini" [CBR p] #; *)
+      (* "SIGNAL" #:= "SIGNAL" + 1 #; *)
+      (* Skip *)
+      #while (! "GMPOOL") do (Debug "waiting for GMPOOL" Vnull) #;
       Debug "ALLOC_AND_FREE START" Vnull #;
-      Yield #;   i #:= MAX #;
-      Yield #;   p #:= Vptr None [0: val ; 0: val ; 0: val ] #;
+      i #:= MAX #;
+      p #:= Vptr None [0: val ; 0: val ; 0: val ] #;
       Debug "init-with-fallback start" Vnull #;
-      Yield #;   Call "init_with_fallback" [CBR p ; CBV "GMPOOL"] #;
+      Call "init_with_fallback" [CBR p ; CBV "GMPOOL"] #;
       Debug "init-with-fallback done" Vnull #;
       #while i
       do (
         Debug "looping, i is: " i #;
-        Yield #;   i #:= i - 1 #;
+        i #:= i - 1 #;
         Debug "calling alloc_contiguous" Vnull #;
-        Yield #;   r0 #:= Call "alloc_contiguous" [CBR p ; CBV sz] #;
-        Yield #;   r1 #:= Call "alloc_contiguous" [CBR p ; CBV sz] #;
-        Yield #;   r2 #:= Call "alloc_contiguous" [CBR p ; CBV sz] #;
-        Yield #;   #assume r0 #;
-        Yield #;   #assume r1 #;
-        Yield #;   #assume r2 #;
+        r0 #:= Call "alloc_contiguous" [CBR p ; CBV sz] #;
+        r1 #:= Call "alloc_contiguous" [CBR p ; CBV sz] #;
+        r2 #:= Call "alloc_contiguous" [CBR p ; CBV sz] #;
+        #assume r0 #;
+        #assume r1 #;
+        #assume r2 #;
         Debug "calling add_chunk" Vnull #;
-        Yield #;   Call "add_chunk" [CBR p ; CBV r0 ; CBV sz] #;
-        Yield #;   Call "add_chunk" [CBR p ; CBV r1 ; CBV sz] #;
-        Yield #;   Call "add_chunk" [CBR p ; CBV r2 ; CBV sz] #;
+        Call "add_chunk" [CBR p ; CBV r0 ; CBV sz] #;
+        Call "add_chunk" [CBR p ; CBV r1 ; CBV sz] #;
+        Call "add_chunk" [CBR p ; CBV r2 ; CBV sz] #;
         Skip
       ) #;
       Put "(Local Mpool) Consume done: " p #;
@@ -735,6 +768,7 @@ Module TEST.
       Call "fini" [CBR p] #;
       "SIGNAL" #:= "SIGNAL" + 1 #;
       Skip
+    )
     .
 
     Definition mainF: function.
