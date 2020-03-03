@@ -718,8 +718,7 @@ Module TEST.
         Yield #;   Call "add_chunk" [CBR p ; CBV r2 ; CBV sz] #;
         Skip
       ) #;
-      Debug "calling fini" Vnull #;
-      (* Put "FINISHING" p #; *)
+      Debug "calling fini" p #;
       Call "fini" [CBR p] #;
       "SIGNAL" #:= "SIGNAL" + 1 #;
       Skip
