@@ -675,13 +675,14 @@ Module TEST.
       Debug "init done, calling add_chunk" p #;
       Call "add_chunk" [CBR p ; CBV (big_chunk pte_paddr_begin MAX) ; CBV MAX] #;
       Debug "add_chunk done" p #;
+      Put "(Global Mpool) Initial: " p #;
       "GMPOOL" #:= p #;
       Debug "gvar assign done" p #;
       #while ("SIGNAL" <= 1) do (Debug "waiting for SIGNAL" Vnull #; Yield) #;
 
       (*** JUST FOR PRINTING -- START ***)
       p #:= (Call "Lock.lock" [CBV (Load p lock_ofs)]) #;
-      Put "Free done: " p #;
+      Put "(Global Mpool) Final: " p #;
       (Call "Lock.unlock" [CBV (Load p lock_ofs) ; CBV p]) #;
       (*** JUST FOR PRINTING -- END ***)
 
@@ -721,7 +722,7 @@ Module TEST.
         Yield #;   Call "add_chunk" [CBR p ; CBV r2 ; CBV sz] #;
         Skip
       ) #;
-      Put "Consume done: " p #;
+      Put "(Local Mpool) Consume done: " p #;
       Debug "calling fini" p #;
       Call "fini" [CBR p] #;
       "SIGNAL" #:= "SIGNAL" + 1 #;
