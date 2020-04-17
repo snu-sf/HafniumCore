@@ -49,7 +49,7 @@ Require Import ClassicalDescription.
 About excluded_middle_informative.
 
 (* From HafniumCore *)
-Require Import Lang.
+Require Import Lang Any.
 Import LangNotations.
 
 Set Implicit Arguments.
@@ -90,7 +90,7 @@ Module LoadStore.
   Definition program: program := [("main", function)].
 
   (* Extraction "LangTest.ml" load_store_program. *)
-  Check (eval_whole_program program).
+  (* Check (eval_whole_program program). *)
 
 End LoadStore.
 
@@ -706,6 +706,59 @@ Module MultiModuleLocalStateSimple.
   Definition isem2: itree Event unit := eval_multimodule modsems2.
 
 End MultiModuleLocalStateSimple.
+
+
+
+Module MultiModuleLocalStateSimpleLang.
+
+  Definition f putorget v: stmt :=
+    #if putorget
+     then (PutOwnedHeap v)
+     else Return GetOwnedHeap
+  .
+  Definition f_function: function. mk_function_tac f (["putorget";"v"]: list var) ([]: list var). Defined.
+  Definition f_program: program := [("f", f_function)].
+
+  Definition g: stmt :=
+    Return 10
+  .
+  Definition g_function: function. mk_function_tac g ([]: list var) ([]: list var). Defined.
+  Definition g_program: program := [("g", g_function)].
+
+  Definition main r: stmt :=
+      (Call "f" [CBV 1 ; CBV 10]) #;
+      (Call "g" []) #;
+      Yield #; r #= CoqCode [(Call "f" [CBV 0 ; CBV Vnodef])] (fun retvs =>
+                                                                 match hd_error retvs with
+                                                                 | Some (Vabs a) => @downcast a val
+                                                                 | _ => Vnodef
+                                                                 end
+                                                              ) #;
+      #assume (r == 10) #;
+      Debug "passed 1" Vnull #;
+      (Call "g" []) #;
+      Yield #; r #= (Call "f" [CBV 0 ; CBV Vnodef]) #;
+      #assume (r == 10) #;
+      Debug "passed 2" Vnull #;
+      Yield #; (Call "f" [CBV 1 ; CBV 20]) #;
+      (Call "g" []) #;
+      Yield #; r #= (Call "f" [CBV 0 ; CBV Vnodef]) #;
+      #assume (r == 20) #;
+      Debug "passed 3" Vnull #;
+      Put "Test(MultiModuleLocalStateSimple) passed" Vnull #;
+      Skip
+  .
+  Definition main_function: function.
+    mk_function_tac main ([]:list var) ["local0"]. Defined.
+  Definition main_program: program := [("main", main_function)].
+
+  Definition modsems: list ModSem :=
+    (List.map program_to_ModSem [main_program ; f_program ; g_program])
+  .
+
+  Definition isem: itree Event unit := eval_multimodule modsems.
+
+End MultiModuleLocalStateSimpleLang.
 
 
 

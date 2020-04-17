@@ -64,6 +64,7 @@ Definition var : Set := string.
 Inductive val: Type :=
 | Vnat (n: nat)
 | Vptr (paddr: option nat) (contents: list val)
+| Vabs (a: Any)
 (* | Vundef *)
 (* | Vnodef *)
 .
@@ -76,6 +77,7 @@ Definition val_dec (v1 v2: val): {v1 = v2} + {v1 <> v2}.
   - apply (Nat.eq_dec n n0).
   - apply (list_eq_dec H contents contents0).
   - destruct paddr, paddr0; decide equality; try apply Nat.eq_dec.
+  - eapply Any_dec; eauto.
 Defined.
 
 Definition Vnull := Vptr (Some 0) [].
@@ -100,6 +102,7 @@ Definition is_true (v : val) : bool :=
     | Some O => false
     | _ => true
     end
+  | _ => false
   end
 .
 
@@ -146,6 +149,9 @@ Inductive expr : Type :=
 (* | SubPointer (_: expr) (from: expr + unit) (to: expr + unit) *)
 | SubPointerFrom (_: expr) (from: expr)
 | SubPointerTo (_: expr) (to: expr)
+
+| PutOwnedHeap (_: expr)
+| GetOwnedHeap
 .
 
 Definition CBV: expr -> var + expr := inr.
@@ -295,6 +301,11 @@ Variant CallInternalE: Type -> Type :=
 | CallInternal (func_name: string) (args: list val): CallInternalE (val * list val)
 .
 
+Variant OwnedHeapE: Type -> Type :=
+| EGetOwnedHeap : OwnedHeapE val
+| EPutOwnedHeap (v: val) : OwnedHeapE unit
+.
+
 Variant CallExternalE: Type -> Type :=
 | CallExternal (func_name: string) (args: list val): CallExternalE (val * list val)
 .
@@ -337,6 +348,7 @@ Section Denote.
   Context {HasEvent : Event -< eff}.
   Context {HasCallInternalE: CallInternalE -< eff}.
   Context {HasCallExternalE: CallExternalE -< eff}.
+  Context {HasOwendHeapE: OwnedHeapE -< eff}.
 
   (** _Imp_ expressions are denoted as [itree eff val], where the returned
       val in the tree is the val computed by the expression.
@@ -491,6 +503,8 @@ Section Denote.
                     | Vptr _ cts => Ret ((length cts): val)
                     | _ => triggerNB "expr-getlen"
                     end
+    | GetOwnedHeap => trigger EGetOwnedHeap
+    | PutOwnedHeap e => v <- (denote_expr e) ;; trigger (EPutOwnedHeap v) ;; ret Vnodef
     end.
 
   Inductive control: Type :=
@@ -593,6 +607,7 @@ Section Denote.
   Context {HasGlobalE: GlobalE -< eff}.
   Context {HasEvent : Event -< eff}.
   Context {HasCallExternalE: CallExternalE -< eff}.
+  Context {HasOwendHeapE: OwnedHeapE -< eff}.
 
   Print Instances Traversable.
   Print Instances Reducible.
@@ -764,15 +779,38 @@ Definition ignore_r {A B}: itree (A +' B) ~> itree A :=
             end)
 .
 
+Definition handle_OwnedHeapE {E: Type -> Type}
+  : OwnedHeapE ~> stateT Any (itree E) :=
+  fun _ e oh =>
+    match e with
+    | EGetOwnedHeap => Ret (oh, Vabs oh)
+    | EPutOwnedHeap v =>
+      match v with
+      | Vabs a => Ret (a, tt)
+      | _ => Ret (oh, tt) (* TODO: error handling? *)
+      end
+    end
+.
+
+Definition interp_OwnedHeapE {E A} (t : itree (OwnedHeapE +' E) A) :
+  stateT Any (itree E) A :=
+  let t' := State.interp_state (case_ handle_OwnedHeapE State.pure_state) t in
+  t'
+.
+
 Definition eval_whole_program (p: program): itree Event unit :=
     let i0 := (interp_LocalE (denote_program p) []) in
     let i1 := (interp_GlobalE i0 []) in
-    @ignore_l CallExternalE _ _ (ITree.ignore i1)
+    let i2 := (interp_OwnedHeapE i1 (upcast tt)) in
+    let i3 := @ignore_l CallExternalE _ _ (ITree.ignore i2) in
+    i3
 .
 
 Definition eval_single_program (p: program): itree (GlobalE +' Event) unit :=
     let i0 := (interp_LocalE (denote_program p) []) in
-    @ignore_l CallExternalE _ _ (ITree.ignore i0)
+    let i1 := @ignore_l CallExternalE _ _ (ITree.ignore i0) in
+    let i2 := @ignore_l OwnedHeapE _ _ (ITree.ignore i1) in
+    i2
 .
 
 Print Instances Iter.
@@ -939,7 +977,7 @@ Definition HANDLE: forall mss,
     ii. ss.
     destruct X. ss.
     { eapply (triggerUB "HANDLE1"). }
-    rename a0 into hd. rename X into tl.
+    rename s into hd. rename X into tl.
     eapply downcast with (T:= owned_heap a) in hd.
     destruct hd; cycle 1.
     { apply (triggerUB "HANDLE2"). }
@@ -964,7 +1002,7 @@ Definition HANDLE2: forall mss,
   - eapply a.(handler) in c.
     ii. ss.
     destruct X. destruct l; ss. clarify.
-    rename a0 into hd. rename l into tl.
+    rename s into hd. rename l into tl.
     eapply downcast with (T:= owned_heap a) in hd.
     destruct hd; cycle 1.
     { apply (triggerUB "HANDLE2A"). }
@@ -979,7 +1017,7 @@ Definition HANDLE2: forall mss,
     apply t.
   - eapply IHmss in s. ss.
     ii. inv X. destruct l; ss. clarify.
-    rename a0 into hd. rename l into tl.
+    rename s0 into hd. rename l into tl.
     assert(tl':= @mk_hvec (length mss) tl H0).
     eapply s in tl'.
     eapply ITree.map; try eapply tl'.
@@ -1012,9 +1050,12 @@ Definition program_to_ModSem (p: program): ModSem :=
   mk_ModSem
     (* (fun s => in_dec Strings.String.string_dec s (List.map fst p)) *)
     (fun s => existsb (string_dec s) (List.map fst p))
-    tt
-    void1
-    (fun T e _ => ITree.map (fun t => (tt, t)) (Handler.empty _ e))
+    (upcast tt)
+    OwnedHeapE
+    handle_OwnedHeapE
+    (* tt *)
+    (* void1 *)
+    (* (fun T e _ => ITree.map (fun t => (tt, t)) (Handler.empty _ e)) *)
     (fun T (c: CallExternalE T) =>
        let '(CallExternal func_name args) := c in
        ITree.map snd (interp_LocalE ((denote_program2 p) _ (CallInternal func_name args)) [])
