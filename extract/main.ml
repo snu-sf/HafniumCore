@@ -69,6 +69,7 @@ let rec string_of_val v =
      then paddr ^ ". "
      else paddr ^ "[" ^
             (List.fold_left (fun s i -> s ^ " " ^ string_of_val i) "" cts) ^ "]"
+  | Vabs(a) -> "some abstract value"
 
 let print_val = fun v -> print_endline (string_of_val v)
 
@@ -233,6 +234,7 @@ let main =
   if true
   then begin
 
+  run (CoqCodeCBR.isem) ;
   print_endline "-----------------------------------------------------------" ;
   run (MultiCore2.sem) ;
   print_endline "-----------------------------------------------------------" ;
@@ -247,6 +249,8 @@ let main =
   run (MultiModuleLocalStateSimple.isem1) ;
   print_endline "-----------------------------------------------------------" ;
   run (MultiModuleLocalStateSimple.isem2) ;
+  print_endline "-----------------------------------------------------------" ;
+  run (MultiModuleLocalStateSimpleLang.isem) ;
   print_endline "-----------------------------------------------------------" ;
   run (MultiModuleGenv.isem) ;
 

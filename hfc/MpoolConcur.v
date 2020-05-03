@@ -55,6 +55,7 @@ Local Open Scope stmt_scope.
 
 
 Set Implicit Arguments.
+Set Universe Polymorphism.
 
 
 
@@ -234,7 +235,7 @@ Simplified Mpool := Vptr [Vnat//lock ; Vptr//chunk_list ; Vptr//fallback]
   Definition alloc_contiguous
              (p count: var)
              (ret next nextp: var): stmt :=
-    #guarantee (CoqCode [p: expr] (fun p => mpool_wf (nth 0 p Vnull))) #;
+    #guarantee (CoqCode [CBV p] (fun p => (mpool_wf (nth 0 p Vnull): val, nil))) #;
     Debug "[alloc_contiguous] locking" Vnull #;
     p #= (Call "Lock.acquire" [CBV (p #@ lock_ofs)]) #;
     next #= (p #@ chunk_list_ofs) #;

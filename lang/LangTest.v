@@ -49,10 +49,12 @@ Require Import ClassicalDescription.
 About excluded_middle_informative.
 
 (* From HafniumCore *)
-Require Import Lang.
+Require Import Lang Any.
 Import LangNotations.
 
 Set Implicit Arguments.
+Set Universe Polymorphism.
+Unset Universe Minimization ToSet.
 
 
 
@@ -90,7 +92,7 @@ Module LoadStore.
   Definition program: program := [("main", function)].
 
   (* Extraction "LangTest.ml" load_store_program. *)
-  Check (eval_whole_program program).
+  (* Check (eval_whole_program program). *)
 
 End LoadStore.
 
@@ -216,24 +218,24 @@ End Move.
 
 Module CoqCode.
 
-  Definition coqcode: list val -> val :=
+  Definition coqcode: list val -> (val * list val) :=
     (fun v =>
        match v with
        | hd :: _ => if excluded_middle_informative (exists w, w * w = hd)
-                    then Vtrue
-                    else Vfalse
-       | _ => Vfalse
+                    then (Vtrue, nil)
+                    else (Vfalse, nil)
+       | _ => (Vfalse, nil)
        end).
 
   (* Extract Constant excluded_middle_informative => "true". (* YJ: To avouid crash *) *)
   (* Extract Constant coqcode => "fun _ -> print_endline ""Is Prop true?"" ; *)
   (*                                     if (read_int() = 0) then coq_Vtrue else coq_Vfalse *)
   (*                                     ". *)
-  Extract Constant coqcode => "fun _ -> coq_Vtrue".
+  Extract Constant coqcode => "fun _ -> (coq_Vtrue, [])".
 
   Definition main x: stmt :=
     x #= 25 #;
-      (#if (CoqCode [Var x] coqcode)
+      (#if (CoqCode [CBV x] coqcode)
         then Put "" 555
         else Put "" 666)
   .
@@ -246,6 +248,34 @@ Module CoqCode.
 End CoqCode.
 
 
+Module CoqCodeCBR.
+
+  Definition coqcode: list val -> (val * list val) :=
+    (fun v =>
+       match v with
+       | hd :: nil => (Vfalse, [50: val])
+       | _ => (Vfalse, nil)
+       end).
+
+  Definition main x: stmt :=
+    x #= 0 #;
+    (CoqCode [CBR x] coqcode) #;
+    #assume (x == 50) #;
+    Put "Test(CoqCodeCBR) passed" Vnull #;
+    Skip
+  .
+
+  Definition main_function: function.
+    mk_function_tac main ([]: list var) ["local0"]. Defined.
+
+  Definition program: program := [("main", main_function)].
+
+  Definition modsems: list ModSem :=
+    List.map program_to_ModSem [program].
+
+  Definition isem: itree Event unit := eval_multimodule modsems.
+
+End CoqCodeCBR.
 
 Module Control.
 
@@ -706,6 +736,62 @@ Module MultiModuleLocalStateSimple.
   Definition isem2: itree Event unit := eval_multimodule modsems2.
 
 End MultiModuleLocalStateSimple.
+
+
+
+Module MultiModuleLocalStateSimpleLang.
+
+  Module M1.
+    Definition put v: stmt :=
+      PutOwnedHeap v
+    .
+    Definition put_function: function. mk_function_tac put (["v"]: list var) ([]: list var). Defined.
+
+    Definition get: stmt :=
+      Return GetOwnedHeap
+    .
+    Definition get_function: function. mk_function_tac get ([]: list var) ([]: list var). Defined.
+
+    Definition program: program := [("put", put_function) ; ("get", get_function)].
+  End M1.
+
+  Module M2.
+
+    Inductive my_type: Type := RED | BLUE.
+
+    Definition check_red: list val -> (val * list val) :=
+      (fun v =>
+         match v with
+         | Vabs a :: _ =>
+           match downcast a my_type with
+           | Some Red => (Vtrue, nil)
+           | _ => (Vfalse, nil)
+           end
+         | _ => (Vfalse, nil)
+         end).
+
+    Definition main r: stmt :=
+      (Call "put" [CBV 1]) #;
+      r #= (Call "get" []) #;
+      (* Put "r is: " r #; *)
+      #assume (r == 1) #;
+      (Call "put" [CBV (Vabs (upcast RED))]) #;
+      (* Put "r is: " r #; *)
+      r #= (Call "get" []) #;
+      #assume (CoqCode [CBV r] check_red) #;
+      Skip
+    .
+    Definition main_function: function. mk_function_tac main ([]: list var) (["r"]: list var). Defined.
+    Definition program: program := [("main", main_function)].
+  End M2.
+
+  Definition modsems: list ModSem :=
+    (List.map program_to_ModSem [M1.program ; M2.program])
+  .
+
+  Definition isem: itree Event unit := eval_multimodule modsems.
+
+End MultiModuleLocalStateSimpleLang.
 
 
 

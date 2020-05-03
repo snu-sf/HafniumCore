@@ -42,6 +42,7 @@ Separate Extraction
          LangTest.MutRec.program
          LangTest.Move.program
          LangTest.CoqCode.program
+         LangTest.CoqCodeCBR.isem
          LangTest.Control.program
          LangTest.DoubleReturn.program
          LangTest.MultiCore.programs
@@ -52,6 +53,7 @@ Separate Extraction
          LangTest.MultiModuleLocalState.isem
          LangTest.MultiModuleLocalStateSimple.isem1
          LangTest.MultiModuleLocalStateSimple.isem2
+         LangTest.MultiModuleLocalStateSimpleLang.isem
          LangTest.MultiModuleMultiCore.sem
          LangTest.MultiModuleMultiCoreLocalState.isem
          (* LangTest.print_val *)
