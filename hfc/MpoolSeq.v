@@ -166,7 +166,7 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
   Definition alloc_contiguous
              (p count: var)
              (ret: var): stmt :=
-    #guarantee (CoqCode [p: expr] (fun p => mpool_wf (nth 0 p Vnull))) #;
+    #guarantee (CoqCode [CBV p] (fun p => (mpool_wf (nth 0 p Vnull): val, nil))) #;
     #while Vtrue
      do (
        Debug "looping alloc_contiguous" Vnull #;
@@ -187,7 +187,7 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
   Definition alloc_contiguous2
              (p count: var)
              (ret next nextp: var): stmt :=
-    #guarantee (CoqCode [p: expr] (fun p => mpool_wf (nth 0 p Vnull))) #;
+    #guarantee (CoqCode [CBV p] (fun p => (mpool_wf (nth 0 p Vnull): val, nil))) #;
     next #= (p #@ chunk_list_ofs) #;
     ret #= (Call "alloc_contiguous_no_fallback2" [CBR next ; CBV count]) #;
     p @ chunk_list_ofs #:= next #;
@@ -253,7 +253,7 @@ Simplified Mpool := Vptr [Vptr//chunk_list ; Vptr//fallback]
   Definition alloc_contiguous_no_fallback
              (p count: var)
              (prev ret new_chunk chunk: var): stmt :=
-    #guarantee (CoqCode [p: expr] (fun p => mpool_wf (nth 0 p Vnull))) #;
+    #guarantee (CoqCode [CBV p] (fun p => (mpool_wf (nth 0 p Vnull): val, nil))) #;
     prev #= (#& (p #@ chunk_list_ofs)) #;
     Debug "(A)prev_is: " prev #;
     #while prev
@@ -659,11 +659,11 @@ Module TEST.
 
       #while Vtrue
       do (
-        #if ((CoqCode [] (fun _ => random_range 2)) == 0)
+        #if ((CoqCode [] (fun _ => (random_range 2: val, nil))) == 0)
          then
            (* add_chunk *)
-           tmp0 #= (CoqCode [] (fun _ => random_range 3)) #;
-           tmp1 #= (CoqCode [] (fun _ => random_range 10)) #;
+           tmp0 #= (CoqCode [] (fun _ => (random_range 3: val, nil))) #;
+           tmp1 #= (CoqCode [] (fun _ => (random_range 10: val, nil))) #;
            (#if (tmp0 == 0)
              then Call "add_chunk" [CBR p0 ; CBV (big_chunk 0 random_latest) ; CBV tmp1]
              else

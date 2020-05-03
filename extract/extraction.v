@@ -42,6 +42,7 @@ Separate Extraction
          LangTest.MutRec.program
          LangTest.Move.program
          LangTest.CoqCode.program
+         LangTest.CoqCodeCBR.isem
          LangTest.Control.program
          LangTest.DoubleReturn.program
          LangTest.MultiCore.programs

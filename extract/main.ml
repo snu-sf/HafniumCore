@@ -234,6 +234,7 @@ let main =
   if true
   then begin
 
+  run (CoqCodeCBR.isem) ;
   print_endline "-----------------------------------------------------------" ;
   run (MultiCore2.sem) ;
   print_endline "-----------------------------------------------------------" ;

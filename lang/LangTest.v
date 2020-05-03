@@ -218,24 +218,24 @@ End Move.
 
 Module CoqCode.
 
-  Definition coqcode: list val -> val :=
+  Definition coqcode: list val -> (val * list val) :=
     (fun v =>
        match v with
        | hd :: _ => if excluded_middle_informative (exists w, w * w = hd)
-                    then Vtrue
-                    else Vfalse
-       | _ => Vfalse
+                    then (Vtrue, nil)
+                    else (Vfalse, nil)
+       | _ => (Vfalse, nil)
        end).
 
   (* Extract Constant excluded_middle_informative => "true". (* YJ: To avouid crash *) *)
   (* Extract Constant coqcode => "fun _ -> print_endline ""Is Prop true?"" ; *)
   (*                                     if (read_int() = 0) then coq_Vtrue else coq_Vfalse *)
   (*                                     ". *)
-  Extract Constant coqcode => "fun _ -> coq_Vtrue".
+  Extract Constant coqcode => "fun _ -> (coq_Vtrue, [])".
 
   Definition main x: stmt :=
     x #= 25 #;
-      (#if (CoqCode [Var x] coqcode)
+      (#if (CoqCode [CBV x] coqcode)
         then Put "" 555
         else Put "" 666)
   .
@@ -248,6 +248,34 @@ Module CoqCode.
 End CoqCode.
 
 
+Module CoqCodeCBR.
+
+  Definition coqcode: list val -> (val * list val) :=
+    (fun v =>
+       match v with
+       | hd :: nil => (Vfalse, [50: val])
+       | _ => (Vfalse, nil)
+       end).
+
+  Definition main x: stmt :=
+    x #= 0 #;
+    (CoqCode [CBR x] coqcode) #;
+    #assume (x == 50) #;
+    Put "Test(CoqCodeCBR) passed" Vnull #;
+    Skip
+  .
+
+  Definition main_function: function.
+    mk_function_tac main ([]: list var) ["local0"]. Defined.
+
+  Definition program: program := [("main", main_function)].
+
+  Definition modsems: list ModSem :=
+    List.map program_to_ModSem [program].
+
+  Definition isem: itree Event unit := eval_multimodule modsems.
+
+End CoqCodeCBR.
 
 Module Control.
 
@@ -731,15 +759,15 @@ Module MultiModuleLocalStateSimpleLang.
 
     Inductive my_type: Type := RED | BLUE.
 
-    Definition check_red: list val -> val :=
+    Definition check_red: list val -> (val * list val) :=
       (fun v =>
          match v with
          | Vabs a :: _ =>
            match downcast a my_type with
-           | Some Red => Vtrue
-           | _ => Vfalse
+           | Some Red => (Vtrue, nil)
+           | _ => (Vfalse, nil)
            end
-         | _ => Vfalse
+         | _ => (Vfalse, nil)
          end).
 
     Definition main r: stmt :=
@@ -750,7 +778,7 @@ Module MultiModuleLocalStateSimpleLang.
       (Call "put" [CBV (Vabs (upcast RED))]) #;
       (* Put "r is: " r #; *)
       r #= (Call "get" []) #;
-      #assume (CoqCode [Var r] check_red) #;
+      #assume (CoqCode [CBV r] check_red) #;
       Skip
     .
     Definition main_function: function. mk_function_tac main ([]: list var) (["r"]: list var). Defined.

@@ -131,7 +131,7 @@ Inductive expr : Type :=
 | Neg (_: expr)
 | LE (_ _: expr)
 | Load (_: var) (_: expr)
-| CoqCode (_: list expr) (P: list val -> val)
+| CoqCode (_: list (var + expr)) (P: list val -> (val * list val))
 | Put (msg: string) (e: expr)
 | Debug (msg: string) (e: expr)
 | Syscall (code: string) (msg: string) (e: expr)
@@ -428,7 +428,19 @@ Section Denote.
                         end
                       | _, _ => triggerNB "expr-load2"
                       end
-    | CoqCode es P => vs <- mapT (denote_expr) es ;; ret (P vs)
+    | CoqCode params P =>
+      args <- mapT (case_ (Case:=case_sum)
+                          (fun name => triggerGetVar name)
+                          (fun e => denote_expr e)) params ;;
+      let '(retv, args_updated) := P args in
+      let nvs: list (var * val) :=
+          combine (filter_map (fun ne => match ne with
+                                | inl n => Some n
+                                | _ => None
+                                end) params) args_updated
+      in
+      mapT (fun '(n, v) => triggerSetVar n v) nvs ;;
+      ret retv
     | Put msg e => v <- denote_expr e ;;
                  triggerSyscall "p" msg [v] ;; Ret (Vnodef)
     | Debug msg e => v <- denote_expr e ;;
