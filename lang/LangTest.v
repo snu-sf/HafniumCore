@@ -53,6 +53,8 @@ Require Import Lang Any.
 Import LangNotations.
 
 Set Implicit Arguments.
+Set Universe Polymorphism.
+Unset Universe Minimization ToSet.
 
 
 
@@ -711,49 +713,52 @@ End MultiModuleLocalStateSimple.
 
 Module MultiModuleLocalStateSimpleLang.
 
-  Definition f putorget v: stmt :=
-    #if putorget
-     then (PutOwnedHeap v)
-     else Return GetOwnedHeap
-  .
-  Definition f_function: function. mk_function_tac f (["putorget";"v"]: list var) ([]: list var). Defined.
-  Definition f_program: program := [("f", f_function)].
+  Module M1.
+    Definition put v: stmt :=
+      PutOwnedHeap v
+    .
+    Definition put_function: function. mk_function_tac put (["v"]: list var) ([]: list var). Defined.
 
-  Definition g: stmt :=
-    Return 10
-  .
-  Definition g_function: function. mk_function_tac g ([]: list var) ([]: list var). Defined.
-  Definition g_program: program := [("g", g_function)].
+    Definition get: stmt :=
+      Return GetOwnedHeap
+    .
+    Definition get_function: function. mk_function_tac get ([]: list var) ([]: list var). Defined.
 
-  Definition main r: stmt :=
-      (Call "f" [CBV 1 ; CBV 10]) #;
-      (Call "g" []) #;
-      Yield #; r #= CoqCode [(Call "f" [CBV 0 ; CBV Vnodef])] (fun retvs =>
-                                                                 match hd_error retvs with
-                                                                 | Some (Vabs a) => @downcast a val
-                                                                 | _ => Vnodef
-                                                                 end
-                                                              ) #;
-      #assume (r == 10) #;
-      Debug "passed 1" Vnull #;
-      (Call "g" []) #;
-      Yield #; r #= (Call "f" [CBV 0 ; CBV Vnodef]) #;
-      #assume (r == 10) #;
-      Debug "passed 2" Vnull #;
-      Yield #; (Call "f" [CBV 1 ; CBV 20]) #;
-      (Call "g" []) #;
-      Yield #; r #= (Call "f" [CBV 0 ; CBV Vnodef]) #;
-      #assume (r == 20) #;
-      Debug "passed 3" Vnull #;
-      Put "Test(MultiModuleLocalStateSimple) passed" Vnull #;
+    Definition program: program := [("put", put_function) ; ("get", get_function)].
+  End M1.
+
+  Module M2.
+
+    Inductive my_type: Type := RED | BLUE.
+
+    Definition check_red: list val -> val :=
+      (fun v =>
+         match v with
+         | Vabs a :: _ =>
+           match downcast a my_type with
+           | Some Red => Vtrue
+           | _ => Vfalse
+           end
+         | _ => Vfalse
+         end).
+
+    Definition main r: stmt :=
+      (Call "put" [CBV 1]) #;
+      r #= (Call "get" []) #;
+      (* Put "r is: " r #; *)
+      #assume (r == 1) #;
+      (Call "put" [CBV (Vabs (upcast RED))]) #;
+      (* Put "r is: " r #; *)
+      r #= (Call "get" []) #;
+      #assume (CoqCode [Var r] check_red) #;
       Skip
-  .
-  Definition main_function: function.
-    mk_function_tac main ([]:list var) ["local0"]. Defined.
-  Definition main_program: program := [("main", main_function)].
+    .
+    Definition main_function: function. mk_function_tac main ([]: list var) (["r"]: list var). Defined.
+    Definition program: program := [("main", main_function)].
+  End M2.
 
   Definition modsems: list ModSem :=
-    (List.map program_to_ModSem [main_program ; f_program ; g_program])
+    (List.map program_to_ModSem [M1.program ; M2.program])
   .
 
   Definition isem: itree Event unit := eval_multimodule modsems.

@@ -52,6 +52,7 @@ Require Import ClassicalDescription EquivDec.
 About excluded_middle_informative.
 
 Set Implicit Arguments.
+Set Universe Polymorphism.
 (* Set Typeclasess Depth 4. *)
 (* Typeclasses eauto := debug 4. *)
 
@@ -301,6 +302,10 @@ Variant CallInternalE: Type -> Type :=
 | CallInternal (func_name: string) (args: list val): CallInternalE (val * list val)
 .
 
+(** TODO: better naming or namespace.
+This definition is only for "program" (written in Lang), not for arbitrary ModSem.
+We are not putting/getting "Any" here, we are putting/getting "val".
+ **)
 Variant OwnedHeapE: Type -> Type :=
 | EGetOwnedHeap : OwnedHeapE val
 | EPutOwnedHeap (v: val) : OwnedHeapE unit
@@ -783,12 +788,12 @@ Definition handle_OwnedHeapE {E: Type -> Type}
   : OwnedHeapE ~> stateT Any (itree E) :=
   fun _ e oh =>
     match e with
-    | EGetOwnedHeap => Ret (oh, Vabs oh)
-    | EPutOwnedHeap v =>
-      match v with
-      | Vabs a => Ret (a, tt)
-      | _ => Ret (oh, tt) (* TODO: error handling? *)
+    | EGetOwnedHeap =>
+      match downcast oh val with
+      | Some v => Ret (oh, v)
+      | _ => Ret (oh, Vnodef) (* TODO: error handling? *)
       end
+    | EPutOwnedHeap v => Ret (upcast v, tt)
     end
 .
 
@@ -977,7 +982,7 @@ Definition HANDLE: forall mss,
     ii. ss.
     destruct X. ss.
     { eapply (triggerUB "HANDLE1"). }
-    rename s into hd. rename X into tl.
+    try rename s into hd. try rename a0 into hd. rename X into tl.
     eapply downcast with (T:= owned_heap a) in hd.
     destruct hd; cycle 1.
     { apply (triggerUB "HANDLE2"). }
@@ -1002,7 +1007,7 @@ Definition HANDLE2: forall mss,
   - eapply a.(handler) in c.
     ii. ss.
     destruct X. destruct l; ss. clarify.
-    rename s into hd. rename l into tl.
+    try rename s into hd. try rename a0 into hd. rename l into tl.
     eapply downcast with (T:= owned_heap a) in hd.
     destruct hd; cycle 1.
     { apply (triggerUB "HANDLE2A"). }
@@ -1017,7 +1022,7 @@ Definition HANDLE2: forall mss,
     apply t.
   - eapply IHmss in s. ss.
     ii. inv X. destruct l; ss. clarify.
-    rename s0 into hd. rename l into tl.
+    try rename s0 into hd. try rename a0 into hd. rename l into tl.
     assert(tl':= @mk_hvec (length mss) tl H0).
     eapply s in tl'.
     eapply ITree.map; try eapply tl'.

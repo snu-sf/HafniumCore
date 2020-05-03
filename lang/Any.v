@@ -18,22 +18,23 @@ Require Import Program.
 Require Import ClassicalDescription EquivDec.
 
 Set Implicit Arguments.
+Set Universe Polymorphism.
 
-Notation Any := { ty: Type & ty }.
-(* Definition Any := { ty: Type & ty }. *)
-(* Hint Unfold Any. *)
+(* Notation Any := { ty: Type & ty }. *)
+Definition Any := { ty: Type & ty }.
+Hint Unfold Any.
 
 Definition excluded_middle_informative_extract_true := excluded_middle_informative.
 Extract Constant excluded_middle_informative_extract_true => "true".
 
-Polymorphic Definition downcast (a: Any) (T: Type): option T.
+Definition downcast (a: Any) (T: Type): option T.
   destruct a.
   destruct (excluded_middle_informative_extract_true (x = T)).
   - subst. apply Some. assumption.
   - apply None.
 Defined.
 
-Polymorphic Definition upcast {T} (a: T): Any := existT id _ a.
+Definition upcast {T} (a: T): Any := existT id _ a.
 
 Lemma downcast_spec
       a T t
@@ -77,3 +78,45 @@ Definition Any_dec (a0 a1: Any): {a0=a1} + {a0<>a1}.
     + right. ii. simpl_depind. clarify.
   - right. ii. simpl_depind.
 Defined.
+
+
+
+Module PLAYGROUND0.
+
+  Unset Universe Polymorphism.
+  Definition Any := { ty: Type & ty }.
+  (* Notation Any := { ty: Type & ty }. *)
+  (* Polymorphic Definition Any := { ty: Type & ty }. *)
+
+  (* Definition downcast (a: Any) (T: Type): option T. *)
+  Polymorphic Definition downcast (a: Any) (T: Type): option T.
+  destruct a.
+  destruct (excluded_middle_informative_extract_true (x = T)).
+  - subst. apply Some. assumption.
+  - apply None.
+  Defined.
+
+  Inductive val: Type := Vabs (a: Any).
+  Variable a: Any.
+  Check (@downcast a val).
+  Variable v: val.
+  Check (match v with
+         | Vabs a => (@downcast a val)
+         end).
+
+  Inductive ModSem: Type := mk_ModSem {
+    owned_heap: Type;
+    initial_owned_heap: owned_heap;
+  }
+  .
+
+  Polymorphic Fixpoint INITIAL (mss: list ModSem): list Any :=
+    match mss with
+    | [] => []
+    | hd :: tl => (existT id _ hd.(initial_owned_heap)) :: INITIAL tl
+    end
+  .
+
+  Polymorphic Definition program_to_ModSem: ModSem := @mk_ModSem Any (upcast tt).
+
+End PLAYGROUND0.
