@@ -170,6 +170,8 @@ Module PLAYGROUND1.
   Variable a: Any.
   Check (@downcast a val).
   Variable v: val.
+  Check (Vabs (upcast (Vabs (upcast 0)))).
+  Check (Vabs (upcast (Vabs (upcast (Vabs (upcast 0)))))).
   Check (match v with
          | Vabs a => (@downcast a val)
          end).
