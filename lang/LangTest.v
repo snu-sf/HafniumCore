@@ -757,7 +757,7 @@ Module MultiModuleLocalStateSimpleLang.
 
     Inductive my_type: Type := RED | BLUE.
 
-    Definition check_red: list val -> (val * list val) :=
+    Definition check_red: list val@{Type} -> (val * list val) :=
       (fun v =>
          match v with
          | Vabs a :: _ =>

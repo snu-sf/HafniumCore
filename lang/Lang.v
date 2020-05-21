@@ -61,13 +61,15 @@ Set Implicit Arguments.
 
 Definition var : Set := string.
 
-Inductive val: Type :=
+Polymorphic Inductive val: Type :=
 | Vnat (n: nat)
 | Vptr (paddr: option nat) (contents: list val)
 | Vabs (a: Any)
 (* | Vundef *)
 (* | Vnodef *)
 .
+
+Check (Vabs (upcast (Vabs (upcast 0)))).
 
 Definition val_dec (v1 v2: val): {v1 = v2} + {v1 <> v2}.
   revert v1 v2.
