@@ -52,7 +52,6 @@ Require Import ClassicalDescription EquivDec.
 About excluded_middle_informative.
 
 Set Implicit Arguments.
-Set Universe Polymorphism.
 (* Set Typeclasess Depth 4. *)
 (* Typeclasses eauto := debug 4. *)
 
@@ -1001,7 +1000,7 @@ Definition HANDLE: forall mss,
     eapply c in o. eapply ITree.map; try eapply o.
     intro. destruct X. econs.
     { eapply cons.
-      - apply (existT id _ o0).
+      - apply (upcast o0).
       - apply tl.
     }
     apply t.
@@ -1027,7 +1026,7 @@ Definition HANDLE2: forall mss,
     intro. destruct X. econs.
     { unshelve econs.
       - eapply cons.
-        { apply (existT id _ o0). }
+        { apply (upcast o0). }
         { apply tl. }
       - ss. eauto.
     }
@@ -1049,14 +1048,14 @@ Defined.
 Fixpoint INITIAL (mss: list ModSem): list Any :=
   match mss with
   | [] => []
-  | hd :: tl => (existT id _ hd.(initial_owned_heap)) :: INITIAL tl
+  | hd :: tl => (upcast hd.(initial_owned_heap)) :: INITIAL tl
   end
 .
 
 Definition INITIAL2 (mss: list ModSem): hvec (length mss).
   induction mss.
   - ss. econs. instantiate (1:=[]). ss.
-  - ss. inv IHmss. econs. instantiate (1:=(existT id _ a.(initial_owned_heap))::l). ss.
+  - ss. inv IHmss. econs. instantiate (1:=(upcast a.(initial_owned_heap))::l). ss.
     eauto.
 Defined.
 

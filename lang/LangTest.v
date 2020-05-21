@@ -53,8 +53,6 @@ Require Import Lang Any.
 Import LangNotations.
 
 Set Implicit Arguments.
-Set Universe Polymorphism.
-Unset Universe Minimization ToSet.
 
 
 

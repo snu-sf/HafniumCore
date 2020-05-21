@@ -55,7 +55,6 @@ Local Open Scope stmt_scope.
 
 
 Set Implicit Arguments.
-Set Universe Polymorphism.
 
 
 
