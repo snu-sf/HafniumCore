@@ -83,10 +83,29 @@ Defined.
 
 Module PLAYGROUND0.
 
+  Set Printing Universes.
   Unset Universe Polymorphism.
+
+
+(*** Coq.Init.Specif (not polymorphic) ***)
+(* Inductive sigT (A : Type@{sigT.u0}) (P : A -> Type@{sigT.u1}) : Type@{max(sigT.u0,sigT.u1)} := *)
+(*     existT : forall x : A, P x -> {x : A & P x} *)
+(* {sigT.u1 sigT.u0} |=  *)
+
+
+(*** Polymorphic ***)
+(* sigT@{HafniumCore.Any.85 HafniumCore.Any.86} (A : Type@{HafniumCore.Any.85}) *)
+(* (P : A -> Type@{HafniumCore.Any.86}) : Type@{max(HafniumCore.Any.85,HafniumCore.Any.86)} := *)
+(*     existT : forall x : A, P x -> sigT@{HafniumCore.Any.85 HafniumCore.Any.86} P *)
+(* HafniumCore.Any.85 HafniumCore.Any.86 |=  *)
+
   Definition Any := { ty: Type & ty }.
-  (* Notation Any := { ty: Type & ty }. *)
-  (* Polymorphic Definition Any := { ty: Type & ty }. *)
+  (* Any = {ty : Type@{Any.u0} & ty} *)
+  (*    : Type@{Any.u0+1} *)
+
+  (* Any@{HafniumCore.Any.84} =  *)
+  (* {ty : Type@{HafniumCore.Any.84} & ty} *)
+  (*   : Type@{HafniumCore.Any.84+1} *)
 
   (* Definition downcast (a: Any) (T: Type): option T. *)
   Polymorphic Definition downcast (a: Any) (T: Type): option T.
@@ -120,3 +139,55 @@ Module PLAYGROUND0.
   Polymorphic Definition program_to_ModSem: ModSem := @mk_ModSem Any (upcast tt).
 
 End PLAYGROUND0.
+
+Module PLAYGROUND1.
+  Section ANY.
+
+  (* Polymorphic Universe i. *)
+  (* Variable T : Type@{i}. *)
+
+  Set Printing Universes.
+  Unset Universe Polymorphism.
+
+  Polymorphic Inductive Any: Type :=
+    Any_intro : forall {A:Type} {x:A}, Any.
+
+  (* Arguments Any [A P]. *)
+
+  Polymorphic Definition downcast (a: Any) (T: Type): option T.
+  destruct a.
+  destruct (excluded_middle_informative_extract_true (A = T)).
+  - subst. apply Some. assumption.
+  - apply None.
+  Defined.
+
+  Polymorphic Definition upcast {T} (a: T): Any := @Any_intro _ a.
+
+  End ANY.
+  Arguments Any_intro {A} x.
+
+  Polymorphic Inductive val: Type := Vabs (a: Any).
+  Variable a: Any.
+  Check (@downcast a val).
+  Variable v: val.
+  Check (match v with
+         | Vabs a => (@downcast a val)
+         end).
+
+  Inductive ModSem: Type := mk_ModSem {
+    owned_heap: Type;
+    initial_owned_heap: owned_heap;
+  }
+  .
+
+  Fixpoint INITIAL (mss: list ModSem): list Any :=
+    match mss with
+    | [] => []
+    | hd :: tl => (Any_intro hd.(initial_owned_heap)) :: INITIAL tl
+    end
+  .
+
+  Definition program_to_ModSem: ModSem := @mk_ModSem Any (upcast tt).
+
+End PLAYGROUND1.
+
