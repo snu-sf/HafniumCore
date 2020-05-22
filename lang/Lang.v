@@ -119,6 +119,17 @@ Coercion bool_to_val: bool >-> val.
 
 
 
+Module PLAYGROUND.
+  Inductive my_expr: Type :=
+  | ITreeCode (itr: itree void1 val)
+  .
+  Fixpoint denote_expr (e : my_expr) : itree void1 val :=
+    match e with
+    | ITreeCode itr => itr
+    end
+  .
+End PLAYGROUND.
+
 (** Expressions are made of variables, constant literals, and arithmetic operations. *)
 Inductive expr : Type :=
 | Var (_ : var)
