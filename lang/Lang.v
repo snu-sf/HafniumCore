@@ -88,7 +88,7 @@ Extract Constant show_val => "
      then paddr ^ "". ""
      else paddr ^ ""["" ^
             (List.fold_left (fun s i -> s ^ "" "" ^ string_of_val i) """" cts) ^ ""]""
-  | Vabs(a) -> ""some abstract value"" in
+  | Vabs(a) -> cl2s (string_of_Any a) in
   fun x -> s2cl (string_of_val x)
 ".
 Instance val_Showable: @Showable val := {
