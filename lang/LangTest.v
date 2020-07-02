@@ -603,6 +603,7 @@ Module MultiModuleLocalState.
   Definition f_ModSem: ModSem :=
     mk_ModSem
       (fun s => string_dec s "f")
+      _
       (fun (_: nat) => None: option nat)
       memoizeE
       f_handler
@@ -689,6 +690,7 @@ Module MultiModuleLocalStateSimple.
   Definition f_ModSem: ModSem :=
     mk_ModSem
       (fun s => string_dec s "f")
+      _
       Vnull
       memoizeE
       f_handler
@@ -867,6 +869,7 @@ Module MultiModuleMultiCoreLocalState.
   Definition f_ModSem: ModSem :=
     mk_ModSem
       (fun s => string_dec s "f")
+      _
       Vnull
       memoizeE
       f_handler
