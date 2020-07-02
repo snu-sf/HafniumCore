@@ -23,6 +23,7 @@ From Coq Require Import
 
 From ExtLib Require Import
      Data.String
+     Data.Option
      Structures.Monad
      Structures.Traversable
      Structures.Foldable

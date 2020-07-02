@@ -26,7 +26,9 @@ From ExtLib Require Import
      Data.String
      Structures.Monad
      Structures.Traversable
-     Data.List.
+     Data.List
+     Data.Option
+     Data.Monads.OptionMonad.
 
 From ITree Require Import
      ITree
