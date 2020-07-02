@@ -266,6 +266,8 @@ let main =
 
   print_endline "-----------------------------------------------------------" ;
   run (PrintAny.isem) ;
+  print_endline "-----------------------------------------------------------" ;
+  run (PrintAnyDefault.isem) ;
 
   end;
 
